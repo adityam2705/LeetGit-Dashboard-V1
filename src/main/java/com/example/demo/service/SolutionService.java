@@ -46,7 +46,7 @@ public class SolutionService {
             Long leetcodeId,
             SolutionRequestDTO request) {
 
-        // 1. Get currently authenticated user
+
         Authentication authentication =
                 SecurityContextHolder.getContext()
                         .getAuthentication();
@@ -58,7 +58,7 @@ public class SolutionService {
                 .orElseThrow(() ->
                         new RuntimeException("User not found"));
 
-        // 2. Find global problem
+
         Problem problem = problemRepository
                 .findByLeetcodeId(leetcodeId)
                 .orElseThrow(() ->
@@ -66,7 +66,7 @@ public class SolutionService {
                                 "Problem '" + leetcodeId + "' not found"
                         ));
 
-        // 3. Find UserProblem relationship
+
         UserProblem userProblem =
                 userProblemRepository
                         .findByUserAndProblem(user, problem)
@@ -82,7 +82,7 @@ public class SolutionService {
                                     .save(newUserProblem);
                         });
 
-        // 4. Prevent duplicate submission
+
         Solution existingSolution =
                 solutionRepository
                         .findByLeetcodeSubmissionId(
@@ -94,24 +94,24 @@ public class SolutionService {
             return solutionMapper.toDTO(existingSolution);
         }
 
-        // 5. Convert DTO → Entity
+
         Solution solution =
                 solutionMapper.toEntity(request);
 
-        // 6. Connect solution to UserProblem
+
         solution.setUserProblem(userProblem);
 
-        // 7. Save
+
         Solution savedSolution =
                 solutionRepository.save(solution);
 
-        // Create GitHub file
+
         gitHubApiService.createSolutionFile(
                 username,
                 savedSolution
         );
 
-        // 8. Return response DTO
+
         return solutionMapper.toDTO(savedSolution);
     }
 }
