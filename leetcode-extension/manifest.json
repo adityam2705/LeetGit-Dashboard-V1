@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "LeetCode Sync",
+  "version": "1.0.0",
+  "description": "Sync LeetCode problems with my backend",
+
+  "permissions": [
+    "storage"
+  ],
+
+  "host_permissions": [
+    "https://leetcode.com/*",
+    "http://localhost:8080/*"
+  ],
+
+  "content_scripts": [
+    {
+      "matches": [
+        "https://leetcode.com/problems/*",
+        "https://leetcode.com/progress/*"
+      ],
+      "js": ["content.js"]
+    }
+  ],
+
+  "action": {
+    "default_title": "LeetCode Sync",
+    "default_popup": "popup.html"
+  }
+}
