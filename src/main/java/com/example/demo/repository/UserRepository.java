@@ -10,5 +10,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     User getUserByIdEquals(Long id);
 
+    Optional<User> findByRefreshToken(String refreshToken);
+
     Optional<User> findByUsername(String username);
-}
+
+     }
+

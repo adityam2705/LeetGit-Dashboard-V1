@@ -1,5 +1,6 @@
 package com.example.demo.service;
 
+import com.example.demo.dto.GitHubRepositoryRequestDTO;
 import com.example.demo.model.GitHubAccount;
 import com.example.demo.repository.GitHubAccountRepository;
 import org.springframework.stereotype.Service;
@@ -10,14 +11,20 @@ import java.util.Map;
 import com.example.demo.model.Solution;
 import com.example.demo.model.Problem;
 
+
+
 @Service
 public class GitHubApiService {
 
     private final GitHubAccountRepository gitHubAccountRepository;
+    private final GitHubService gitHubService;
 
     public GitHubApiService(
-            GitHubAccountRepository gitHubAccountRepository) {
+            GitHubAccountRepository gitHubAccountRepository,
+            GitHubService gitHubService) {
+
         this.gitHubAccountRepository = gitHubAccountRepository;
+        this.gitHubService = gitHubService;
     }
 
     public GitHubAccount getGitHubAccount(String username) {
@@ -29,10 +36,9 @@ public class GitHubApiService {
     }
 
     public String getAccessToken(String username) {
-
         GitHubAccount account = getGitHubAccount(username);
 
-        return account.getAccessToken();
+        return gitHubService.getValidAccessToken(account);
     }
 
     public String getAuthenticatedUser(String username) {
@@ -49,12 +55,14 @@ public class GitHubApiService {
                 .body(String.class);
     }
 
-    public String getRepositoryContents(
-            String username,
-            String owner,
-            String repository) {
+    public String getRepositoryContents(String username) {
 
         String accessToken = getAccessToken(username);
+
+        GitHubAccount account = getGitHubAccount(username);
+
+        String owner = account.getRepositoryOwner();
+        String repository = account.getRepositoryName();
 
         RestClient restClient = RestClient.create();
 
@@ -136,10 +144,18 @@ public class GitHubApiService {
 
         RestClient restClient = RestClient.create();
 
+        GitHubAccount account = getGitHubAccount(username);
+
+        String owner = account.getRepositoryOwner();
+        String repository = account.getRepositoryName();
+
+
+
         return restClient.put()
                 .uri("https://api.github.com/repos/"
-                        + "adityam2705"
-                        + "/leetcode-solutions"
+                        + owner
+                        + "/"
+                        + repository
                         + "/contents/"
                         + path)
                 .header("Authorization", "Bearer " + accessToken)
@@ -147,5 +163,40 @@ public class GitHubApiService {
                 .body(body)
                 .retrieve()
                 .body(String.class);
+    }
+
+    public boolean isGitHubConnected(String username) {
+        return gitHubAccountRepository
+                .findByUser_Username(username)
+                .isPresent();
+    }
+
+    public String getRepositories(String username) {
+
+        String accessToken = getAccessToken(username);
+
+        RestClient restClient = RestClient.create();
+
+        return restClient.get()
+                .uri("https://api.github.com/user/repos")
+                .header("Authorization", "Bearer " + accessToken)
+                .header("Accept", "application/vnd.github+json")
+                .retrieve()
+                .body(String.class);
+    }
+
+    public String selectRepository(
+            String username,
+            GitHubRepositoryRequestDTO request) {
+
+        GitHubAccount account =
+                getGitHubAccount(username);
+
+        account.setRepositoryOwner(request.getOwner());
+        account.setRepositoryName(request.getRepository());
+
+        gitHubAccountRepository.save(account);
+
+        return "Repository selected successfully";
     }
 }

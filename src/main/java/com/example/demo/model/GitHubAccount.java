@@ -2,6 +2,7 @@ package com.example.demo.model;
 
 import jakarta.persistence.*;
 
+
 @Entity
 @Table(name = "github_accounts")
 public class GitHubAccount {
@@ -24,8 +25,20 @@ public class GitHubAccount {
 
     private java.time.Instant expiresAt;
 
+    private String repositoryOwner;
+
+    private String repositoryName;
+
     public GitHubAccount() {
     }
+
+    public String getRepositoryOwner() {return repositoryOwner;}
+
+    public void setRepositoryOwner(String repositoryOwner) {this.repositoryOwner = repositoryOwner;}
+
+    public String getRepositoryName() {return repositoryName;}
+
+    public void setRepositoryName(String repositoryName) {this.repositoryName = repositoryName;}
 
     public Long getId() {
         return id;

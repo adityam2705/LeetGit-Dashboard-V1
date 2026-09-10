@@ -1,8 +1,11 @@
 package com.example.demo.controller;
 
+import com.example.demo.dto.GitHubRepositoryRequestDTO;
 import com.example.demo.service.GitHubApiService;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 @RestController
 @RequestMapping("/github/api")
@@ -24,9 +27,39 @@ public class GitHubApiController {
     public String getRepositoryContents(Authentication authentication) {
 
         return gitHubApiService.getRepositoryContents(
-                authentication.getName(),
-                "adityam2705",
-                "leetcode-solutions"
+                authentication.getName()
         );
     }
+
+    @GetMapping("/status")
+    public Map<String, Object> getGitHubStatus(Authentication authentication) {
+
+        String username = authentication.getName();
+
+        boolean connected =
+                gitHubApiService.isGitHubConnected(username);
+
+        return Map.of(
+                "connected", connected
+        );
+    }
+
+    @GetMapping("/repositories")
+    public String getRepositories(Authentication authentication) {
+
+        return gitHubApiService
+                .getRepositories(authentication.getName());
+    }
+
+    @PostMapping("/repository")
+    public String selectRepository(
+            Authentication authentication,
+            @RequestBody GitHubRepositoryRequestDTO request) {
+
+        return gitHubApiService.selectRepository(
+                authentication.getName(),
+                request
+        );
+    }
+
 }

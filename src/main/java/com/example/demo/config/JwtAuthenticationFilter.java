@@ -37,11 +37,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String authHeader = request.getHeader("Authorization");
 
-        System.out.println("AUTH HEADER: " + authHeader);
-
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-
-            System.out.println("NO JWT FOUND");
 
             filterChain.doFilter(request, response);
             return;
@@ -49,21 +45,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String token = authHeader.substring(7);
 
-        System.out.println("JWT FOUND");
-
         if (!jwtService.isTokenValid(token)) {
-
-            System.out.println("JWT INVALID");
 
             filterChain.doFilter(request, response);
             return;
         }
 
-        System.out.println("JWT VALID");
-
         String username = jwtService.extractUsername(token);
-
-        System.out.println("USERNAME FROM JWT: " + username);
 
         UserDetails userDetails =
                 userDetailsService.loadUserByUsername(username);
@@ -78,10 +66,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         SecurityContextHolder.getContext()
                 .setAuthentication(authentication);
 
-        System.out.println("AUTHENTICATION SET: "
-                + SecurityContextHolder.getContext()
-                .getAuthentication()
-                .getName());
 
         filterChain.doFilter(request, response);
     }

@@ -66,6 +66,13 @@ public class SecurityConfig {
                                 "/auth/login"
                         ).permitAll()
 
+                        .requestMatchers(HttpMethod.POST,
+                                "/auth/refresh")
+                        .permitAll()
+
+                        .requestMatchers(HttpMethod.GET, "/github/connect")
+                        .authenticated()
+
                         .requestMatchers(HttpMethod.GET, "/github/callback")
                         .permitAll()
 

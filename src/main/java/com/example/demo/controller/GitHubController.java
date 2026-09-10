@@ -34,7 +34,7 @@ public class GitHubController {
 
         String username = gitHubService.getUsernameForState(state);
 
-        return gitHubService.exchangeCodeForToken(code, username);
+        return gitHubService.exchangeCodeForToken(code, username, state);
     }
 
     @GetMapping("/connect")

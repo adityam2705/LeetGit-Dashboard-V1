@@ -21,6 +21,9 @@ public class User{
     @Size(min = 6, max = 100)
     private String password;
 
+    @Column(length = 500)
+    private String refreshToken;
+
     private String username;
     private String email;
     private int solved;
@@ -104,6 +107,11 @@ public class User{
     }
 
     public void setGitHubAccount(GitHubAccount gitHubAccount) {
-        this.gitHubAccount = gitHubAccount;
-    }
+        this.gitHubAccount = gitHubAccount;}
+
+    public String getRefreshToken() {
+        return refreshToken;}
+
+    public void setRefreshToken(String refreshToken) {
+        this.refreshToken = refreshToken;}
 }

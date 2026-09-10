@@ -1,16 +1,90 @@
 console.log("LeetCode Sync extension loaded");
 
+const API_BASE_URL = "http://localhost:8080";
 
-// ============================================================
+async function refreshAccessToken() {
+
+    const data = await chrome.storage.local.get([
+        "refreshToken"
+    ]);
+
+    if (!data.refreshToken) {
+        throw new Error("No refresh token found");
+    }
+
+    const response = await fetch(
+        API_BASE_URL + "/auth/refresh",
+        {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                refreshToken: data.refreshToken
+            })
+        }
+    );
+
+    if (!response.ok) {
+        throw new Error("Refresh token invalid or expired");
+    }
+
+    const result = await response.json();
+
+    await chrome.storage.local.set({
+        jwt: result.accessToken,
+        refreshToken: result.refreshToken
+    });
+
+    return result.accessToken;
+}
+
+async function refreshAccessToken() {
+
+    const data = await chrome.storage.local.get([
+        "refreshToken"
+    ]);
+
+    if (!data.refreshToken) {
+        throw new Error("No refresh token found");
+    }
+
+    const response = await fetch(
+        API_BASE_URL + "/auth/refresh",
+        {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                refreshToken: data.refreshToken
+            })
+        }
+    );
+
+    if (!response.ok) {
+        throw new Error("Refresh token invalid or expired");
+    }
+
+    const result = await response.json();
+
+    await chrome.storage.local.set({
+        jwt: result.accessToken,
+        refreshToken: result.refreshToken
+    });
+
+    return result.accessToken;
+}
+
 // 1. SYNC PROBLEM WITH BACKEND
-// ============================================================
+
 
 async function syncProblem(problem, token) {
 
     console.log("Syncing problem...");
 
     const response = await fetch(
-        "http://localhost:8080/problems/sync",
+        API_BASE_URL+"/problems/sync",
         {
             method: "POST",
 
@@ -42,9 +116,9 @@ async function syncProblem(problem, token) {
 }
 
 
-// ============================================================
+
 // 2. FETCH SUBMISSIONS
-// ============================================================
+
 
 async function fetchSubmissions(slug) {
 
@@ -114,9 +188,9 @@ async function fetchSubmissions(slug) {
 }
 
 
-// ============================================================
+
 // 3. FETCH SUBMISSION DETAILS
-// ============================================================
+
 
 async function fetchSubmissionDetails(submissionId) {
 
@@ -179,9 +253,9 @@ async function fetchSubmissionDetails(submissionId) {
 }
 
 
-// ============================================================
+
 // 4. SYNC SOLUTION WITH BACKEND
-// ============================================================
+
 
 async function syncSolution(
     problem,
@@ -218,7 +292,7 @@ async function syncSolution(
     console.log("Sending solution to backend...");
 
     const response = await fetch(
-        `http://localhost:8080/solutions/sync/${problem.frontendId}`,
+        `${API_BASE_URL}/solutions/sync/${problem.frontendId}`,
         {
             method: "POST",
 
@@ -245,9 +319,9 @@ async function syncSolution(
 }
 
 
-// ============================================================
+
 // 5. FETCH ALL SOLVED PROBLEMS FROM LEETCODE
-// ============================================================
+
 
 async function fetchSolvedProblems() {
 
@@ -315,9 +389,9 @@ async function fetchSolvedProblems() {
 }
 
 
-// ============================================================
+
 // 6. HISTORICAL IMPORT
-// ============================================================
+
 
 async function historicalImport(token) {
 
@@ -365,13 +439,13 @@ async function historicalImport(token) {
                 );
 
 
-            // ------------------------------------------------
+
             // STEP 2
             // IMPORTANT OPTIMIZATION
-            //
+
             // If problem already belongs to this user,
             // DO NOT fetch submissions.
-            // ------------------------------------------------
+
 
             if (!syncedProblem.newForUser) {
 
@@ -393,10 +467,10 @@ async function historicalImport(token) {
             }
 
 
-            // ------------------------------------------------
+
             // STEP 3
             // Only NEW problems reach here
-            // ------------------------------------------------
+
 
             const submissions =
                 await fetchSubmissions(
@@ -404,10 +478,10 @@ async function historicalImport(token) {
                 );
 
 
-            // ------------------------------------------------
+
             // STEP 4
             // Find Accepted submission
-            // ------------------------------------------------
+
 
             const acceptedSubmission =
                 submissions.find(
@@ -438,10 +512,10 @@ async function historicalImport(token) {
             );
 
 
-            // ------------------------------------------------
+
             // STEP 5
             // Fetch complete submission details
-            // ------------------------------------------------
+
 
             const details =
                 await fetchSubmissionDetails(
@@ -498,10 +572,9 @@ async function historicalImport(token) {
             };
 
 
-            // ------------------------------------------------
+
             // STEP 7
-            // Save solution
-            // ------------------------------------------------
+
 
             await syncSolution(
                 problem,
@@ -557,9 +630,8 @@ async function historicalImport(token) {
 }
 
 
-// ============================================================
 // 7. SYNC CURRENT PROBLEM PAGE
-// ============================================================
+
 
 async function syncCurrentProblem(token) {
 
@@ -681,9 +753,9 @@ async function syncCurrentProblem(token) {
 }
 
 
-// ============================================================
+
 // 8. GET JWT FROM CHROME STORAGE
-// ============================================================
+
 
 chrome.storage.local.get(
     ["jwt"],
@@ -701,66 +773,40 @@ chrome.storage.local.get(
 
             return;
         }
+    })
 
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
-        console.log(
-            "JWT found"
-        );
+    if (message.type === "SYNC_NOW") {
 
+        chrome.storage.local.get(["jwt"], async (data) => {
 
-        // ----------------------------------------------------
-        // Historical import
-        // ----------------------------------------------------
-
-        if (
-            window.location.pathname
-                .startsWith("/progress")
-        ) {
-
-            console.log(
-                "Progress page detected"
-            );
-
-            try {
-
-                await historicalImport(
-                    token
-                );
-
-            } catch (error) {
-
-                console.error(
-                    "Historical import failed:",
-                    error
-                );
+            if (!data.jwt) {
+                sendResponse({
+                    success: false,
+                    message: "Please login first"
+                });
+                return;
             }
 
-            return;
-        }
-
-
-        // ----------------------------------------------------
-        // Current problem page
-        // ----------------------------------------------------
-
-        if (
-            window.location.pathname
-                .startsWith("/problems/")
-        ) {
-
             try {
+                await historicalImport(data.jwt);
 
-                await syncCurrentProblem(
-                    token
-                );
+                sendResponse({
+                    success: true,
+                    message: "Sync completed"
+                });
 
             } catch (error) {
+                console.error("Sync failed:", error);
 
-                console.error(
-                    "Current problem sync failed:",
-                    error
-                );
+                sendResponse({
+                    success: false,
+                    message: "Sync failed"
+                });
             }
-        }
+        });
+
+        return true;
     }
-);
+});
