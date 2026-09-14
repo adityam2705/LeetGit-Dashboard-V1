@@ -9,15 +9,6 @@ import java.util.Optional;
 public interface SolutionRepository
         extends JpaRepository<Solution, Long> {
 
-    Optional<Solution> findByLeetcodeSubmissionId(
-            Long leetcodeSubmissionId
-    );
-
-    Optional<Solution> findByUserProblemAndLeetcodeSubmissionId(
-            UserProblem userProblem,
-            Long leetcodeSubmissionId
-    );
-
     Optional<Solution> findByUserProblem(
             UserProblem userProblem
     );

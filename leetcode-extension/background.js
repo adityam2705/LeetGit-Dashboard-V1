@@ -26,8 +26,7 @@ async function getLeetCodeTab() {
 
     const tabs = await chrome.tabs.query({
         url: [
-            "https://leetcode.com/progress/*",
-            "https://leetcode.com/problems/*"
+            "https://leetcode.com/progress/*"
         ]
     });
 

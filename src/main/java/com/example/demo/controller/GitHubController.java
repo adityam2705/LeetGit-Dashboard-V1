@@ -1,6 +1,5 @@
 package com.example.demo.controller;
 
-import com.example.demo.dto.GitHubRepositoryRequestDTO;
 import com.example.demo.service.GitHubApiService;
 import com.example.demo.service.GitHubService;
 import org.springframework.http.HttpStatus;
@@ -9,7 +8,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/github")
@@ -39,25 +37,6 @@ public class GitHubController {
 
         return gitHubApiService
                 .syncPendingSolutions(username);
-    }
-
-
-    // =========================================================
-    // TEMPORARY BULK TEST
-    // =========================================================
-
-    @PostMapping("/test-bulk")
-    public String testBulkSync(
-            Authentication authentication,
-            @RequestParam java.util.List<Long> solutionIds) {
-
-        String username =
-                authentication.getName();
-
-        return gitHubApiService.testBulkSync(
-                username,
-                solutionIds
-        );
     }
 
 

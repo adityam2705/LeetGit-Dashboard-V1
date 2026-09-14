@@ -1,0 +1,2 @@
+ALTER TABLE solutions
+DROP INDEX UK8sh388ckkpp9kroqalqu0l2kr;
