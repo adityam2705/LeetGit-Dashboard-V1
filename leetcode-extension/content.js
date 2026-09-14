@@ -2,260 +2,617 @@ console.log("LeetCode Sync extension loaded");
 
 const API_BASE_URL = "http://localhost:8080";
 
+// =========================================
+// NETWORK TIMEOUT
+// =========================================
+
+const REQUEST_TIMEOUT_MS = 30000;
+
+async function fetchWithTimeout(
+    url,
+    options = {},
+    timeoutMs = REQUEST_TIMEOUT_MS
+) {
+
+    const controller =
+        new AbortController();
+
+    const timeoutId =
+        setTimeout(
+            () => controller.abort(),
+            timeoutMs
+        );
+
+    try {
+
+        return await fetch(
+            url,
+            {
+                ...options,
+                signal:
+                controller.signal
+            }
+        );
+
+    } catch (error) {
+
+        if (
+            error &&
+            error.name === "AbortError"
+        ) {
+
+            throw new Error(
+                `Request timed out after ${timeoutMs / 1000} seconds: ${url}`
+            );
+        }
+
+        throw error;
+
+    } finally {
+
+        clearTimeout(timeoutId);
+    }
+}
+
+
+
+// =========================================
+// REFRESH ACCESS TOKEN
+// =========================================
+
 async function refreshAccessToken() {
 
-    const data = await chrome.storage.local.get([
-        "refreshToken"
-    ]);
+    const data =
+        await chrome.storage.local.get([
+            "refreshToken"
+        ]);
+
 
     if (!data.refreshToken) {
-        throw new Error("No refresh token found");
+
+        throw new Error(
+            "No refresh token found"
+        );
     }
 
-    const response = await fetch(
-        API_BASE_URL + "/auth/refresh",
-        {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                refreshToken: data.refreshToken
-            })
-        }
-    );
+
+    const response =
+        await fetchWithTimeout(
+            API_BASE_URL + "/auth/refresh",
+            {
+                method: "POST",
+
+                headers: {
+                    "Content-Type":
+                        "application/json"
+                },
+
+                body: JSON.stringify({
+                    refreshToken:
+                    data.refreshToken
+                })
+            }
+        );
+
 
     if (!response.ok) {
-        throw new Error("Refresh token invalid or expired");
+
+        throw new Error(
+            "Refresh token invalid or expired"
+        );
     }
 
-    const result = await response.json();
+
+    const result =
+        await response.json();
+
 
     await chrome.storage.local.set({
-        jwt: result.accessToken,
-        refreshToken: result.refreshToken
+
+        jwt:
+        result.accessToken,
+
+        refreshToken:
+        result.refreshToken
     });
+
 
     return result.accessToken;
 }
 
-async function refreshAccessToken() {
 
-    const data = await chrome.storage.local.get([
-        "refreshToken"
-    ]);
+// =========================================
+// API FETCH
+// Automatically refreshes JWT
+// =========================================
 
-    if (!data.refreshToken) {
-        throw new Error("No refresh token found");
+async function apiFetch(
+    url,
+    options = {}
+) {
+
+    const data =
+        await chrome.storage.local.get([
+            "jwt"
+        ]);
+
+
+    if (!data.jwt) {
+
+        throw new Error(
+            "No JWT found"
+        );
     }
 
-    const response = await fetch(
-        API_BASE_URL + "/auth/refresh",
-        {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                refreshToken: data.refreshToken
-            })
-        }
+
+    const headers =
+        new Headers(
+            options.headers || {}
+        );
+
+
+    headers.set(
+        "Authorization",
+        "Bearer " + data.jwt
     );
 
-    if (!response.ok) {
-        throw new Error("Refresh token invalid or expired");
+
+    const response =
+        await fetchWithTimeout(
+            url,
+            {
+                ...options,
+                headers
+            }
+        );
+
+
+    if (response.status !== 401) {
+
+        return response;
     }
 
-    const result = await response.json();
 
-    await chrome.storage.local.set({
-        jwt: result.accessToken,
-        refreshToken: result.refreshToken
-    });
+    // Access token expired
 
-    return result.accessToken;
+    const newToken =
+        await refreshAccessToken();
+
+
+    headers.set(
+        "Authorization",
+        "Bearer " + newToken
+    );
+
+
+    return fetchWithTimeout(
+        url,
+        {
+            ...options,
+            headers
+        }
+    );
 }
 
-// 1. SYNC PROBLEM WITH BACKEND
 
 
-async function syncProblem(problem, token) {
+// =========================================
+// LEETCODE GRAPHQL
+// =========================================
 
-    console.log("Syncing problem...");
+async function leetcodeGraphQL(
+    query,
+    variables = {}
+) {
 
-    const response = await fetch(
-        API_BASE_URL+"/problems/sync",
-        {
-            method: "POST",
+    const response =
+        await fetchWithTimeout(
+            "https://leetcode.com/graphql/",
+            {
+                method: "POST",
 
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": "Bearer " + token
-            },
+                headers: {
+                    "Content-Type":
+                        "application/json"
+                },
 
-            body: JSON.stringify({
-                leetcodeId: Number(problem.frontendId),
-                title: problem.title,
-                slug: problem.titleSlug,
-                difficulty: problem.difficulty
-            })
-        }
-    );
+                credentials:
+                    "include",
+
+                body: JSON.stringify({
+
+                    query:
+                    query,
+
+                    variables:
+                    variables
+                })
+            }
+        );
+
 
     if (!response.ok) {
+
+        throw new Error(
+            `LeetCode GraphQL request failed: ${response.status}`
+        );
+    }
+
+
+    const result =
+        await response.json();
+
+
+    if (
+        result.errors &&
+        result.errors.length
+    ) {
+
+        throw new Error(
+            result.errors
+                .map(
+                    error =>
+                        error.message
+                )
+                .join("; ")
+        );
+    }
+
+
+    return result.data;
+}
+
+
+
+// =========================================
+// 1. FETCH SOLVED PROBLEMS
+// =========================================
+
+async function fetchSolvedProblems() {
+
+    const allQuestions = [];
+
+    const pageSize = 1000;
+
+    let skip = 0;
+
+    let totalNum = null;
+
+
+    while (true) {
+
+        const query = `
+            query userProgressQuestionList(
+                $filters: UserProgressQuestionListInput
+            ) {
+
+                userProgressQuestionList(
+                    filters: $filters
+                ) {
+
+                    totalNum
+
+                    questions {
+
+                        frontendId
+                        title
+                        titleSlug
+                        difficulty
+                        lastSubmittedAt
+
+                    }
+                }
+            }
+        `;
+
+
+        const variables = {
+
+            filters: {
+
+                skip:
+                skip,
+
+                limit:
+                pageSize,
+
+                questionStatus:
+                    "SOLVED"
+            }
+        };
+
+
+        const data =
+            await leetcodeGraphQL(
+                query,
+                variables
+            );
+
+
+        const result =
+            data?.userProgressQuestionList;
+
+
+        if (!result) {
+
+            throw new Error(
+                "LeetCode returned an invalid progress response."
+            );
+        }
+
+
+        const questions =
+            Array.isArray(
+                result.questions
+            )
+                ? result.questions
+                : [];
+
+
+        if (
+            totalNum === null &&
+            Number.isFinite(
+                Number(
+                    result.totalNum
+                )
+            )
+        ) {
+
+            totalNum =
+                Number(
+                    result.totalNum
+                );
+        }
+
+
+        allQuestions.push(
+            ...questions
+        );
+
+
+        console.log(
+            `Solved problems received in this page: ${questions.length}`
+        );
+
+
+        if (
+            questions.length === 0 ||
+            questions.length < pageSize ||
+            (
+                totalNum !== null &&
+                allQuestions.length >= totalNum
+            )
+        ) {
+
+            break;
+        }
+
+
+        skip += pageSize;
+    }
+
+
+    console.log(
+        `Total solved problems: ${allQuestions.length}`
+    );
+
+
+    return allQuestions;
+}
+
+
+
+// =========================================
+// 2. SYNC PROBLEM
+// =========================================
+
+async function syncProblem(
+    problem,
+    token
+) {
+
+    const response =
+        await apiFetch(
+            API_BASE_URL +
+            "/problems/sync",
+            {
+                method: "POST",
+
+                headers: {
+                    "Content-Type":
+                        "application/json"
+                },
+
+                body: JSON.stringify({
+
+                    leetcodeId:
+                        Number(
+                            problem.frontendId
+                        ),
+
+                    title:
+                    problem.title,
+
+                    slug:
+                    problem.titleSlug,
+
+                    difficulty:
+                    problem.difficulty,
+
+                    lastSubmittedAt:
+                    problem.lastSubmittedAt
+                })
+            }
+        );
+
+
+    if (!response.ok) {
+
         throw new Error(
             `Problem sync failed: ${response.status}`
         );
     }
 
-    const result = await response.json();
 
-    console.log("Problem synced:", result);
-
-    return result;
+    return await response.json();
 }
 
 
 
-// 2. FETCH SUBMISSIONS
+// =========================================
+// 3. FETCH SUBMISSIONS
+// =========================================
+
+async function fetchSubmissions(
+    titleSlug
+) {
+
+    const allSubmissions = [];
+
+    const pageSize = 20;
+
+    let offset = 0;
 
 
-async function fetchSubmissions(slug) {
+    while (true) {
 
-    console.log("Fetching submissions...");
-
-    const query = `
-        query submissionList(
-            $questionSlug: String!
-            $limit: Int
-            $offset: Int
-        ) {
-            submissionList(
-                questionSlug: $questionSlug
-                limit: $limit
-                offset: $offset
+        const query = `
+            query submissionList(
+                $offset: Int!
+                $limit: Int!
+                $questionSlug: String!
             ) {
-                submissions {
-                    id
-                    statusDisplay
-                    lang
-                    timestamp
+
+                submissionList(
+                    offset: $offset
+                    limit: $limit
+                    questionSlug: $questionSlug
+                ) {
+
+                    submissions {
+
+                        id
+                        statusDisplay
+                        lang
+                        timestamp
+                        runtime
+                        memory
+
+                    }
                 }
             }
-        }
-    `;
+        `;
 
-    const variables = {
-        questionSlug: slug,
-        limit: 20,
-        offset: 0
-    };
 
-    const response = await fetch(
-        "https://leetcode.com/graphql/",
-        {
-            method: "POST",
+        const variables = {
 
-            credentials: "include",
+            offset:
+            offset,
 
-            headers: {
-                "Content-Type": "application/json"
-            },
+            limit:
+            pageSize,
 
-            body: JSON.stringify({
+            questionSlug:
+            titleSlug
+        };
+
+
+        const data =
+            await leetcodeGraphQL(
                 query,
                 variables
-            })
-        }
-    );
+            );
 
-    if (!response.ok) {
-        throw new Error(
-            `Submission list failed: ${response.status}`
+
+        const submissions =
+            data?.submissionList?.submissions;
+
+
+        if (
+            !Array.isArray(
+                submissions
+            )
+        ) {
+
+            break;
+        }
+
+
+        allSubmissions.push(
+            ...submissions
         );
+
+
+        if (
+            submissions.length <
+            pageSize
+        ) {
+
+            break;
+        }
+
+
+        offset += pageSize;
     }
 
-    const data = await response.json();
 
-    const submissions =
-        data?.data?.submissionList?.submissions || [];
-
-    console.log(
-        `Submissions found: ${submissions.length}`
-    );
-
-    return submissions;
+    return allSubmissions;
 }
 
 
 
-// 3. FETCH SUBMISSION DETAILS
+// =========================================
+// 4. FETCH SUBMISSION DETAILS
+// =========================================
 
-
-async function fetchSubmissionDetails(submissionId) {
-
-    console.log("Fetching submission code...");
+async function fetchSubmissionDetails(
+    submissionId
+) {
 
     const query = `
         query submissionDetails(
             $submissionId: Int!
         ) {
+
             submissionDetails(
                 submissionId: $submissionId
             ) {
+
                 code
+
                 lang {
                     name
                 }
+
                 runtime
                 memory
                 statusDisplay
+
             }
         }
     `;
 
-    const variables = {
-        submissionId: Number(submissionId)
-    };
 
-    const response = await fetch(
-        "https://leetcode.com/graphql/",
-        {
-            method: "POST",
-
-            credentials: "include",
-
-            headers: {
-                "Content-Type": "application/json"
-            },
-
-            body: JSON.stringify({
-                query,
-                variables
-            })
-        }
-    );
-
-    if (!response.ok) {
-        throw new Error(
-            `Submission details failed: ${response.status}`
+    const data =
+        await leetcodeGraphQL(
+            query,
+            {
+                submissionId:
+                    Number(
+                        submissionId
+                    )
+            }
         );
-    }
 
-    const data = await response.json();
 
-    const details =
-        data?.data?.submissionDetails;
-
-    console.log("Submission details received.");
-
-    return details;
+    return data?.submissionDetails;
 }
 
 
 
-// 4. SYNC SOLUTION WITH BACKEND
-
+// =========================================
+// 5. SYNC SOLUTION
+// =========================================
 
 async function syncSolution(
     problem,
@@ -263,174 +620,330 @@ async function syncSolution(
     token
 ) {
 
-    const solution = {
+    const response =
+        await apiFetch(
+            API_BASE_URL +
+            "/solutions/sync/" +
+            encodeURIComponent(
+                problem.frontendId
+            ),
+            {
+                method: "POST",
 
-        leetcodeSubmissionId:
-            Number(submission.submissionId),
+                headers: {
+                    "Content-Type":
+                        "application/json"
+                },
 
-        code:
-        submission.code,
+                body: JSON.stringify({
 
-        language:
-        submission.language,
+                    leetcodeSubmissionId:
+                    submission.submissionId,
 
-        submittedAt:
-            Number(submission.submittedAt),
+                    code:
+                    submission.code,
 
-        runtime:
-        submission.runtime,
+                    language:
+                    submission.language,
 
-        memory:
-        submission.memory,
+                    submittedAt:
+                    submission.submittedAt,
 
-        status:
-        submission.status
-    };
+                    runtime:
+                    submission.runtime,
 
-    console.log("Solution prepared:", solution);
+                    memory:
+                    submission.memory,
 
-    console.log("Sending solution to backend...");
+                    status:
+                    submission.status
+                })
+            }
+        );
 
-    const response = await fetch(
-        `${API_BASE_URL}/solutions/sync/${problem.frontendId}`,
-        {
-            method: "POST",
-
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": "Bearer " + token
-            },
-
-            body: JSON.stringify(solution)
-        }
-    );
 
     if (!response.ok) {
+
         throw new Error(
             `Solution sync failed: ${response.status}`
         );
     }
 
-    const result = await response.json();
 
-    console.log("Solution saved:", result);
-
-    return result;
+    return await response.json();
 }
 
 
 
-// 5. FETCH ALL SOLVED PROBLEMS FROM LEETCODE
+// =========================================
+// 6. SEND SYNC PROGRESS
+// =========================================
 
+async function sendSyncProgress(
+    processed,
+    total,
+    problem
+) {
 
-async function fetchSolvedProblems() {
+    try {
 
-    const query = `
-        query userProgressQuestionList(
-            $filters: UserProgressQuestionListInput
-        ) {
-            userProgressQuestionList(
-                filters: $filters
-            ) {
-                totalNum
-                questions {
-                    frontendId
-                    title
-                    titleSlug
-                    difficulty
-                    lastSubmittedAt
-                }
+        await chrome.storage.local.set({
+
+            syncState: {
+
+                status:
+                    "running",
+
+                processed:
+                processed,
+
+                total:
+                total,
+
+                problem:
+                problem
             }
-        }
-    `;
+        });
 
-    const variables = {
-        filters: {
-            questionStatus: "SOLVED",
-            skip: 0,
-            limit: 1000
-        }
-    };
+    } catch (error) {
 
-    const response = await fetch(
-        "https://leetcode.com/graphql/",
-        {
-            method: "POST",
-
-            credentials: "include",
-
-            headers: {
-                "Content-Type": "application/json"
-            },
-
-            body: JSON.stringify({
-                query,
-                variables
-            })
-        }
-    );
-
-    if (!response.ok) {
-        throw new Error(
-            `Solved problems fetch failed: ${response.status}`
+        console.error(
+            "Could not save sync progress:",
+            error
         );
     }
 
-    const data = await response.json();
 
-    const questions =
-        data?.data?.userProgressQuestionList?.questions || [];
+    try {
 
-    console.log(
-        `Total solved problems: ${questions.length}`
-    );
+        await chrome.runtime.sendMessage({
 
-    return questions;
+            type:
+                "SYNC_PROGRESS",
+
+            processed:
+            processed,
+
+            total:
+            total,
+
+            problem:
+            problem
+        });
+
+    } catch (error) {
+
+        // Popup/side panel may be closed.
+        // Storage remains the source of truth.
+
+        console.debug(
+            "Could not send progress message:",
+            error
+        );
+    }
 }
 
 
 
-// 6. HISTORICAL IMPORT
+// =========================================
+// SYNC CANCELLATION
+// =========================================
+
+let syncCancellationRequested =
+    false;
 
 
-async function historicalImport(token) {
+class SyncCancelledError extends Error {
 
-    console.log("Starting historical import...");
+    constructor() {
+
+        super(
+            "Sync stopped by user."
+        );
+
+        this.name =
+            "SyncCancelledError";
+    }
+}
+
+
+function throwIfSyncCancelled() {
+
+    if (
+        syncCancellationRequested
+    ) {
+
+        throw new SyncCancelledError();
+    }
+}
+
+
+async function saveStoppedSyncState() {
+
+    try {
+
+        const current =
+            await chrome.storage.local.get([
+                "syncState"
+            ]);
+
+
+        const previous =
+            current?.syncState ||
+            {};
+
+
+        await chrome.storage.local.set({
+
+            syncState: {
+
+                status:
+                    "stopped",
+
+                processed:
+                    Number.isFinite(
+                        Number(
+                            previous.processed
+                        )
+                    )
+                        ? Number(
+                            previous.processed
+                        )
+                        : 0,
+
+                total:
+                    Number.isFinite(
+                        Number(
+                            previous.total
+                        )
+                    )
+                        ? Number(
+                            previous.total
+                        )
+                        : 0,
+
+                problem:
+                    "Sync stopped"
+            }
+        });
+
+    } catch (error) {
+
+        console.error(
+            "Could not save stopped sync state:",
+            error
+        );
+    }
+}
+
+
+
+// =========================================
+// 7. HISTORICAL IMPORT
+// =========================================
+
+async function historicalImport(
+    token
+) {
+
+    console.log(
+        "Starting historical import..."
+    );
+
+
+    throwIfSyncCancelled();
+
 
     const problems =
         await fetchSolvedProblems();
+
+
+    throwIfSyncCancelled();
+
+
+    if (
+        !Array.isArray(
+            problems
+        )
+    ) {
+
+        throw new Error(
+            "LeetCode returned an invalid solved-problem list."
+        );
+    }
+
 
     console.log(
         `Found ${problems.length} solved problems`
     );
 
+
     let processed = 0;
 
-    for (const problem of problems) {
+    let newSolutions = 0;
+
+    let alreadySynced = 0;
+
+    let failedProblems = 0;
+
+    let skippedWithoutAccepted = 0;
+
+
+    await sendSyncProgress(
+        0,
+        problems.length,
+        "Starting sync..."
+    );
+
+
+    for (
+        const problem of problems
+        ) {
+
+        throwIfSyncCancelled();
+
+
+        const problemLabel =
+            `${problem?.frontendId || "?"}. ${problem?.title || "Unknown problem"}`;
 
         try {
+
+            if (
+                !problem ||
+                !problem.frontendId ||
+                !problem.titleSlug
+            ) {
+
+                throw new Error(
+                    "Invalid problem data received from LeetCode."
+                );
+            }
+
 
             console.log(
                 "======================================"
             );
 
+
             console.log(
                 `${processed + 1}/${problems.length}`
             );
 
+
             console.log(
                 `Processing: ${problem.title}`
             );
+
 
             console.log(
                 `LeetCode ID: ${problem.frontendId}`
             );
 
 
-            // ------------------------------------------------
+            // -----------------------------------------
             // STEP 1
             // Sync problem + user_problem
-            // ------------------------------------------------
+            // -----------------------------------------
 
             const syncedProblem =
                 await syncProblem(
@@ -439,374 +952,605 @@ async function historicalImport(token) {
                 );
 
 
+            throwIfSyncCancelled();
 
+
+            // -----------------------------------------
             // STEP 2
-            // IMPORTANT OPTIMIZATION
+            // Already synced to GitHub
+            // -----------------------------------------
 
-            // If problem already belongs to this user,
-            // DO NOT fetch submissions.
-
-
-            if (!syncedProblem.newForUser) {
+            if (
+                syncedProblem &&
+                syncedProblem.githubSynced === true
+            ) {
 
                 console.log(
-                    `Already synced: ${problem.title}`
+                    `Already synced to GitHub: ${problem.title}`
                 );
+
 
                 console.log(
                     "Skipping submission fetch."
                 );
 
-                processed++;
 
-                console.log(
-                    `${processed}/${problems.length}`
-                );
+                alreadySynced++;
 
-                continue;
+            } else {
+
+
+                // -----------------------------------------
+                // STEP 3
+                // Find an Accepted submission
+                // Pagination is handled inside fetchSubmissions.
+                // -----------------------------------------
+
+                const submissions =
+                    await fetchSubmissions(
+                        problem.titleSlug
+                    );
+
+
+                throwIfSyncCancelled();
+
+
+                const acceptedSubmission =
+                    submissions.find(
+                        submission =>
+                            submission?.statusDisplay ===
+                            "Accepted"
+                    );
+
+
+                if (
+                    !acceptedSubmission
+                ) {
+
+                    console.log(
+                        `No accepted submission found for ${problem.title}`
+                    );
+
+
+                    skippedWithoutAccepted++;
+
+                } else {
+
+
+                    console.log(
+                        "Accepted submission:",
+                        acceptedSubmission
+                    );
+
+
+                    // -----------------------------------------
+                    // STEP 4
+                    // Fetch complete submission details
+                    // -----------------------------------------
+
+                    const details =
+                        await fetchSubmissionDetails(
+                            acceptedSubmission.id
+                        );
+
+
+                    throwIfSyncCancelled();
+
+
+                    if (
+                        !details ||
+                        !details.code
+                    ) {
+
+                        throw new Error(
+                            "Accepted submission details did not contain source code."
+                        );
+                    }
+
+
+                    // -----------------------------------------
+                    // STEP 5
+                    // Prepare solution
+                    // -----------------------------------------
+
+                    const submission = {
+
+                        submissionId:
+                            Number(
+                                acceptedSubmission.id
+                            ),
+
+                        code:
+                        details.code,
+
+                        language:
+                            details.lang?.name ||
+                            acceptedSubmission.lang ||
+                            "unknown",
+
+                        submittedAt:
+                            Number(
+                                acceptedSubmission.timestamp
+                            ) || 0,
+
+                        runtime:
+                            details.runtime ??
+                            "",
+
+                        memory:
+                            details.memory ??
+                            "",
+
+                        status:
+                            details.statusDisplay ||
+                            acceptedSubmission.statusDisplay
+                    };
+
+
+                    // -----------------------------------------
+                    // STEP 6
+                    // Sync solution
+                    // -----------------------------------------
+
+                    await syncSolution(
+                        problem,
+                        submission,
+                        token
+                    );
+
+
+                    throwIfSyncCancelled();
+
+
+                    newSolutions++;
+
+
+                    console.log(
+                        `SUCCESS: ${problem.title}`
+                    );
+                }
             }
-
-
-
-            // STEP 3
-            // Only NEW problems reach here
-
-
-            const submissions =
-                await fetchSubmissions(
-                    problem.titleSlug
-                );
-
-
-
-            // STEP 4
-            // Find Accepted submission
-
-
-            const acceptedSubmission =
-                submissions.find(
-                    submission =>
-                        submission.statusDisplay === "Accepted"
-                );
-
-
-            if (!acceptedSubmission) {
-
-                console.log(
-                    `No accepted submission found for ${problem.title}`
-                );
-
-                processed++;
-
-                console.log(
-                    `${processed}/${problems.length}`
-                );
-
-                continue;
-            }
-
-
-            console.log(
-                "Accepted submission:",
-                acceptedSubmission
-            );
-
-
-
-            // STEP 5
-            // Fetch complete submission details
-
-
-            const details =
-                await fetchSubmissionDetails(
-                    acceptedSubmission.id
-                );
-
-
-            if (!details) {
-
-                console.log(
-                    `Could not fetch submission details for ${problem.title}`
-                );
-
-                processed++;
-
-                console.log(
-                    `${processed}/${problems.length}`
-                );
-
-                continue;
-            }
-
-
-            // ------------------------------------------------
-            // STEP 6
-            // Prepare solution object
-            // ------------------------------------------------
-
-            const submission = {
-
-                submissionId:
-                acceptedSubmission.id,
-
-                code:
-                details.code,
-
-                language:
-                    details.lang?.name ||
-                    acceptedSubmission.lang,
-
-                submittedAt:
-                    Number(
-                        acceptedSubmission.timestamp
-                    ),
-
-                runtime:
-                details.runtime,
-
-                memory:
-                details.memory,
-
-                status:
-                details.statusDisplay
-            };
-
-
-
-            // STEP 7
-
-
-            await syncSolution(
-                problem,
-                submission,
-                token
-            );
-
-
-            console.log(
-                `SUCCESS: ${problem.title}`
-            );
-
 
         } catch (error) {
 
+            // Cancellation must escape the per-problem catch.
+
+            if (
+                error instanceof SyncCancelledError ||
+                error?.name === "SyncCancelledError"
+            ) {
+
+                throw error;
+            }
+
+
+            failedProblems++;
+
+
             console.error(
-                `FAILED: ${problem.title}`,
+                `FAILED: ${problemLabel}`,
                 error
             );
         }
 
 
+        // -----------------------------------------
+        // ALWAYS advance progress
+        // -----------------------------------------
+
+        throwIfSyncCancelled();
+
+
         processed++;
+
 
         console.log(
             `${processed}/${problems.length}`
         );
 
 
-        // Small delay
-        await new Promise(
-            resolve =>
-                setTimeout(resolve, 300)
+        await sendSyncProgress(
+            processed,
+            problems.length,
+            problemLabel
         );
+
+
+        throwIfSyncCancelled();
+
+
+        // No delay between problems.
+        // Do not let an individual failure stop the import.
+
+        if (
+            processed <
+            problems.length
+        ) {
+
+            throwIfSyncCancelled();
+        }
     }
 
 
     console.log(
         "======================================"
     );
+
 
     console.log(
         "HISTORICAL IMPORT COMPLETE"
     );
 
+
     console.log(
-        `Processed ${processed} problems`
+        `Processed: ${processed}`
     );
+
+
+    console.log(
+        `New solutions: ${newSolutions}`
+    );
+
+
+    console.log(
+        `Already synced: ${alreadySynced}`
+    );
+
+
+    console.log(
+        `No accepted submission: ${skippedWithoutAccepted}`
+    );
+
+
+    console.log(
+        `Failed problems: ${failedProblems}`
+    );
+
 
     console.log(
         "======================================"
     );
-}
 
 
-// 7. SYNC CURRENT PROBLEM PAGE
+    // =========================================
+    // STEP 7
+    // ONE BULK GITHUB SYNC
+    // =========================================
 
-
-async function syncCurrentProblem(token) {
-
-    const path =
-        window.location.pathname;
-
-    if (!path.startsWith("/problems/")) {
-        return;
-    }
-
-    if (path.includes("/submissions")) {
-        return;
-    }
-
-    const slug =
-        path.split("/")[2];
-
-    if (!slug) {
-        return;
-    }
+    throwIfSyncCancelled();
 
 
     console.log(
-        `Current problem detected: ${slug}`
+        "Starting GitHub bulk sync..."
     );
 
 
-    const query = `
-        query questionData(
-            $titleSlug: String!
-        ) {
-            question(
-                titleSlug: $titleSlug
-            ) {
-                questionFrontendId
-                title
-                titleSlug
-                difficulty
+    const githubResponse =
+        await apiFetch(
+            API_BASE_URL +
+            "/github/sync",
+            {
+                method: "POST"
             }
-        }
-    `;
-
-    const variables = {
-        titleSlug: slug
-    };
+        );
 
 
-    const response = await fetch(
-        "https://leetcode.com/graphql/",
-        {
-            method: "POST",
-
-            credentials: "include",
-
-            headers: {
-                "Content-Type": "application/json"
-            },
-
-            body: JSON.stringify({
-                query,
-                variables
-            })
-        }
-    );
+    throwIfSyncCancelled();
 
 
-    if (!response.ok) {
+    if (
+        !githubResponse.ok
+    ) {
+
         throw new Error(
-            `Problem fetch failed: ${response.status}`
+            `GitHub sync failed: ${githubResponse.status}`
         );
     }
 
 
-    const data =
-        await response.json();
-
-
-    const question =
-        data?.data?.question;
-
-
-    if (!question) {
-
-        console.log(
-            "Could not find current problem"
-        );
-
-        return;
-    }
-
-
-    const problem = {
-
-        frontendId:
-        question.questionFrontendId,
-
-        title:
-        question.title,
-
-        titleSlug:
-        question.titleSlug,
-
-        difficulty:
-        question.difficulty
-    };
-
-
-    const result =
-        await syncProblem(
-            problem,
-            token
-        );
+    const githubResult =
+        await githubResponse.text();
 
 
     console.log(
-        "Current problem sync result:",
-        result
+        "GitHub bulk sync completed:",
+        githubResult
     );
+
+
+    const summary = {
+
+        processed:
+        processed,
+
+        newSolutions:
+        newSolutions,
+
+        alreadySynced:
+        alreadySynced,
+
+        skippedWithoutAccepted:
+        skippedWithoutAccepted,
+
+        failedProblems:
+        failedProblems,
+
+        github:
+        githubResult
+    };
+
+
+    await chrome.storage.local.set({
+
+        syncState: {
+
+            status:
+                "completed",
+
+            processed:
+            processed,
+
+            total:
+            problems.length,
+
+            problem:
+                "Sync completed",
+
+            summary:
+            summary
+        }
+    });
+
+
+    return summary;
 }
 
 
 
-// 8. GET JWT FROM CHROME STORAGE
+let historicalImportRunning = false;
 
 
-chrome.storage.local.get(
-    ["jwt"],
-    async (result) => {
 
-        const token =
-            result.jwt;
+// =========================================
+// CONTENT SCRIPT HEALTH CHECK
+// =========================================
 
+chrome.runtime.onMessage.addListener(
+    (
+        message,
+        sender,
+        sendResponse
+    ) => {
 
-        if (!token) {
+        if (
+            message?.type ===
+            "LEETGIT_PING"
+        ) {
 
-            console.log(
-                "No JWT found in chrome storage"
-            );
+            sendResponse({
+
+                success:
+                    true,
+
+                message:
+                    "LeetGit content script is ready."
+            });
 
             return;
         }
-    })
 
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
-    if (message.type === "SYNC_NOW") {
+        // =========================================
+        // STOP SYNC
+        // =========================================
 
-        chrome.storage.local.get(["jwt"], async (data) => {
+        if (
+            message?.type ===
+            "STOP_SYNC"
+        ) {
 
-            if (!data.jwt) {
+            if (
+                !historicalImportRunning
+            ) {
+
                 sendResponse({
-                    success: false,
-                    message: "Please login first"
+
+                    success:
+                        true,
+
+                    message:
+                        "No sync is currently running."
                 });
+
                 return;
             }
 
-            try {
-                await historicalImport(data.jwt);
 
-                sendResponse({
-                    success: true,
-                    message: "Sync completed"
-                });
+            syncCancellationRequested =
+                true;
 
-            } catch (error) {
-                console.error("Sync failed:", error);
 
-                sendResponse({
-                    success: false,
-                    message: "Sync failed"
-                });
-            }
+            sendResponse({
+
+                success:
+                    true,
+
+                message:
+                    "Sync stop requested."
+            });
+
+            return;
+        }
+
+
+        // =========================================
+        // SYNC NOW
+        // =========================================
+
+        if (
+            message?.type !==
+            "SYNC_NOW"
+        ) {
+
+            return;
+        }
+
+
+        if (
+            historicalImportRunning
+        ) {
+
+            sendResponse({
+
+                success:
+                    false,
+
+                message:
+                    "A sync is already running."
+            });
+
+            return;
+        }
+
+
+        historicalImportRunning =
+            true;
+
+
+        syncCancellationRequested =
+            false;
+
+
+        // THIS IS THE IMPORTANT FIX.
+        // Respond immediately.
+
+        sendResponse({
+
+            success:
+                true,
+
+            message:
+                "Sync started."
         });
 
-        return true;
+
+        // The actual sync is completely detached
+        // from the message request.
+
+        void (async () => {
+
+            try {
+
+                const data =
+                    await chrome.storage.local.get([
+                        "jwt"
+                    ]);
+
+
+                if (!data.jwt) {
+
+                    throw new Error(
+                        "Please login first"
+                    );
+                }
+
+
+                await chrome.storage.local.set({
+
+                    syncState: {
+
+                        status:
+                            "running",
+
+                        processed:
+                            0,
+
+                        total:
+                            0,
+
+                        problem:
+                            "Starting sync..."
+                    }
+                });
+
+
+                await historicalImport(
+                    data.jwt
+                );
+
+
+            } catch (error) {
+
+                console.error(
+                    "Sync failed:",
+                    error
+                );
+
+
+                if (
+                    error instanceof SyncCancelledError ||
+                    error?.name ===
+                    "SyncCancelledError"
+                ) {
+
+                    await saveStoppedSyncState();
+
+                    return;
+                }
+
+
+                const current =
+                    await chrome.storage.local.get([
+                        "syncState"
+                    ]);
+
+
+                const previous =
+                    current?.syncState ||
+                    {};
+
+
+                await chrome.storage.local.set({
+
+                    syncState: {
+
+                        status:
+                            "failed",
+
+                        processed:
+                            Number(
+                                previous.processed
+                            ) || 0,
+
+                        total:
+                            Number(
+                                previous.total
+                            ) || 0,
+
+                        problem:
+                            previous.problem ||
+                            "Sync failed",
+
+                        error:
+                            error?.message ||
+                            "Sync failed"
+                    }
+                });
+
+
+            } finally {
+
+                historicalImportRunning =
+                    false;
+
+
+                syncCancellationRequested =
+                    false;
+            }
+
+        })();
+
+
+        return;
     }
-});
+);

@@ -3,20 +3,20 @@ package com.example.demo.dto;
 public class ProblemSyncResponseDTO {
 
     private ProblemResponseDTO problem;
-    private boolean newForUser;
+    private boolean githubSynced;
 
     public ProblemSyncResponseDTO(
             ProblemResponseDTO problem,
-            boolean newForUser) {
+            boolean githubSynced) {
         this.problem = problem;
-        this.newForUser = newForUser;
+        this.githubSynced = githubSynced;
     }
 
     public ProblemResponseDTO getProblem() {
         return problem;
     }
 
-    public boolean isNewForUser() {
-        return newForUser;
+    public boolean isGithubSynced() {
+        return githubSynced;
     }
 }

@@ -45,4 +45,10 @@ public class ProblemController {
 
         return problemService.syncProblem(request);
     }
+
+    @GetMapping("/existing-ids")
+    public List<Long> getExistingProblemIds() {
+
+        return problemService.getExistingProblemIds();
+    }
 }

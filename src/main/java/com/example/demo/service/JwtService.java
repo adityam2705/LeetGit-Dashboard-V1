@@ -10,7 +10,7 @@ import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.security.SecureRandom;
-import java.util.Base64;
+import java.util.Base64;import java.util.Date;
 
 @Service
 public class JwtService {
@@ -26,8 +26,14 @@ public class JwtService {
 
     public String generateToken(String username) {
 
+        Date now = new Date();
+
         return Jwts.builder()
                 .subject(username)
+                .issuedAt(now)
+                .expiration(
+                        new Date(now.getTime() + 30 * 60 * 1000)
+                )
                 .signWith(getSecretKey())
                 .compact();
     }

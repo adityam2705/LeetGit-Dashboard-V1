@@ -1,5 +1,7 @@
 package com.example.demo.service;
 
+import java.util.List;
+import java.util.Optional;
 import com.example.demo.dto.ProblemRequestDTO;
 import com.example.demo.dto.ProblemResponseDTO;
 import com.example.demo.dto.ProblemSyncResponseDTO;
@@ -15,8 +17,7 @@ import com.example.demo.model.User;
 import com.example.demo.repository.UserRepository;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import java.util.List;
-import java.util.Optional;
+
 
 @Service
 public class ProblemService {
@@ -51,7 +52,9 @@ public class ProblemService {
 
         Problem problem = problemRepository.findById(id)
                 .orElseThrow(() ->
-                        new ProblemNotFoundException("Problem '" + id + "' not found"));
+                        new ProblemNotFoundException(
+                                "Problem '" + id + "' not found"
+                        ));
 
         return problemMapper.toDTO(problem);
     }
@@ -65,8 +68,23 @@ public class ProblemService {
                 .toList();
     }
 
+    public List<Long> getExistingProblemIds() {
+
+        Authentication authentication =
+                SecurityContextHolder.getContext().getAuthentication();
+
+        String username = authentication.getName();
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() ->
+                        new RuntimeException("User not found"));
+
+        return userProblemRepository.findLeetcodeIdsByUser(user);
+    }
+
     @Transactional
-    public ProblemSyncResponseDTO syncProblem(ProblemRequestDTO request) {
+    public ProblemSyncResponseDTO syncProblem(
+            ProblemRequestDTO request) {
 
         Authentication authentication =
                 SecurityContextHolder.getContext().getAuthentication();
@@ -82,30 +100,43 @@ public class ProblemService {
                 .orElse(null);
 
         if (problem == null) {
+
             problem = problemMapper.toEntity(request);
+
             problem = problemRepository.save(problem);
         }
 
+
         Optional<UserProblem> existingUserProblem =
-                userProblemRepository.findByUserAndProblem(user, problem);
+                userProblemRepository.findByUserAndProblem(
+                        user,
+                        problem
+                );
 
         if (existingUserProblem.isPresent()) {
 
+            UserProblem userProblem =
+                    existingUserProblem.get();
+
             return new ProblemSyncResponseDTO(
                     problemMapper.toDTO(problem),
-                    false
+                    userProblem.isGithubSynced()
             );
         }
 
-        UserProblem userProblem = new UserProblem();
+
+        UserProblem userProblem =
+                new UserProblem();
+
         userProblem.setUser(user);
         userProblem.setProblem(problem);
 
-        userProblemRepository.save(userProblem);
+        userProblem =
+                userProblemRepository.save(userProblem);
 
         return new ProblemSyncResponseDTO(
                 problemMapper.toDTO(problem),
-                true
+                userProblem.isGithubSynced()
         );
     }
 }

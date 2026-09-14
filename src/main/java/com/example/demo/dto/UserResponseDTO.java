@@ -5,7 +5,6 @@ public class UserResponseDTO {
 
     private Long id;
     private String username;
-    private String email;
     private int solved;
     private int easy;
     private int medium;
@@ -14,12 +13,11 @@ public class UserResponseDTO {
     public UserResponseDTO() {
     }
 
-    public UserResponseDTO(Long id, String username, String email,
+    public UserResponseDTO(Long id, String username,
                            int solved, int easy, int medium, int hard) {
 
         this.id = id;
         this.username = username;
-        this.email = email;
         this.solved = solved;
         this.easy = easy;
         this.medium = medium;
@@ -40,14 +38,6 @@ public class UserResponseDTO {
 
     public void setUsername(String username) {
         this.username = username;
-    }
-
-    public String getEmail() {
-        return email;
-    }
-
-    public void setEmail(String email) {
-        this.email = email;
     }
 
     public int getSolved() {

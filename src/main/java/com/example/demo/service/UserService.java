@@ -12,7 +12,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
-
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 @Service
 public class UserService {
 
@@ -33,17 +36,23 @@ public class UserService {
 
     public UserResponseDTO saveUser(UserRequestDTO userRequestDTO) {
 
+        if (userRepository.findByUsername(userRequestDTO.getUsername()).isPresent()) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Username is already taken"
+            );
+        }
+
         User user = userMapper.toEntity(userRequestDTO);
 
-
-
-        user.setPassword(passwordEncoder.encode(user.getPassword()));
+        user.setPassword(
+                passwordEncoder.encode(user.getPassword())
+        );
 
         User savedUser = userRepository.save(user);
 
         return userMapper.toDTO(savedUser);
-
-        }
+    }
 
     public UserResponseDTO getUser(Long id){
 

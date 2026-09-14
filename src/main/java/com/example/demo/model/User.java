@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import jakarta.persistence.OneToOne;
-import jakarta.persistence.CascadeType;
+import jakarta.persistence.CascadeType;import jakarta.persistence.Column;
 
 @Entity
 @Table(name = "users")
@@ -24,8 +24,9 @@ public class User{
     @Column(length = 500)
     private String refreshToken;
 
+    @Column(nullable = false, unique = true)
     private String username;
-    private String email;
+
     private int solved;
     private int easy;
     private int medium;
@@ -34,9 +35,8 @@ public class User{
     public User() {
     }
 
-    public User(String username,String email, int solved, int easy, int medium, int hard) {
+    public User(String username, int solved, int easy, int medium, int hard) {
         this.username = username;
-        this.email=email;
         this.solved = solved;
         this.easy = easy;
         this.medium = medium;
@@ -67,10 +67,6 @@ public class User{
         return hard;
     }
 
-    public String getEmail() {return email;}
-
-    public void set() {
-    }
 
     public void setUsername(String username) {
         this.username=username;
@@ -90,10 +86,6 @@ public class User{
 
     public void setHard(int hard) {
         this.hard = hard;
-    }
-
-    public void setEmail(String email) {
-        this.email=email;
     }
 
     public String getPassword() {return password;}

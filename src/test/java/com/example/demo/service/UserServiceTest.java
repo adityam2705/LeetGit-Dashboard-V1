@@ -78,17 +78,14 @@ class UserServiceTest {
         // Arrange
         UserRequestDTO request = new UserRequestDTO();
         request.setUsername("testuser");
-        request.setEmail("test@example.com");
         request.setPassword("test123");
 
         User user = new User();
         user.setUsername("testuser");
-        user.setEmail("test@example.com");
         user.setPassword("test123");
 
         User savedUser = new User();
         savedUser.setUsername("testuser");
-        savedUser.setEmail("test@example.com");
         savedUser.setPassword("$2a$10$encodedPassword");
 
         UserResponseDTO response = new UserResponseDTO();

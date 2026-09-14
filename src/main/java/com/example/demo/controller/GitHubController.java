@@ -1,27 +1,69 @@
 package com.example.demo.controller;
 
+import com.example.demo.dto.GitHubRepositoryRequestDTO;
+import com.example.demo.service.GitHubApiService;
 import com.example.demo.service.GitHubService;
-import jakarta.annotation.Nonnull;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/github")
 public class GitHubController {
 
     private final GitHubService gitHubService;
+    private final GitHubApiService gitHubApiService;
 
-    public GitHubController(GitHubService gitHubService) {
+    public GitHubController(
+            GitHubService gitHubService,
+            GitHubApiService gitHubApiService) {
+
         this.gitHubService = gitHubService;
+        this.gitHubApiService = gitHubApiService;
     }
+
+    // =========================================================
+    // BULK SYNC
+    // =========================================================
+
+    @PostMapping("/sync")
+    public String syncToGitHub(
+            Authentication authentication) {
+
+        String username =
+                authentication.getName();
+
+        return gitHubApiService
+                .syncPendingSolutions(username);
+    }
+
+
+    // =========================================================
+    // TEMPORARY BULK TEST
+    // =========================================================
+
+    @PostMapping("/test-bulk")
+    public String testBulkSync(
+            Authentication authentication,
+            @RequestParam java.util.List<Long> solutionIds) {
+
+        String username =
+                authentication.getName();
+
+        return gitHubApiService.testBulkSync(
+                username,
+                solutionIds
+        );
+    }
+
+
+    // =========================================================
+    // GITHUB OAUTH CALLBACK
+    // =========================================================
 
     @GetMapping("/callback")
     public String callback(
@@ -32,20 +74,30 @@ public class GitHubController {
             return "Invalid state";
         }
 
-        String username = gitHubService.getUsernameForState(state);
+        String username =
+                gitHubService.getUsernameForState(state);
 
-        return gitHubService.exchangeCodeForToken(code, username, state);
+        return gitHubService.exchangeCodeForToken(
+                code,
+                username,
+                state
+        );
     }
 
+
+    // =========================================================
+    // CONNECT GITHUB
+    // =========================================================
+
     @GetMapping("/connect")
-    public ResponseEntity<Void> connect() {
+    public ResponseEntity<Void> connect(
+            Authentication authentication) {
 
-        Authentication authentication =
-                SecurityContextHolder.getContext().getAuthentication();
+        String username =
+                authentication.getName();
 
-        String username = authentication.getName();
-
-        String state = gitHubService.generateState(username);
+        String state =
+                gitHubService.generateState(username);
 
         String authorizationUrl =
                 gitHubService.getAuthorizationUrl(state);
@@ -56,14 +108,21 @@ public class GitHubController {
                 .build();
     }
 
+
+    // =========================================================
+    // GET CONNECT URL
+    // =========================================================
+
     @GetMapping("/connect-url")
-    public String connectUrl(Authentication authentication) {
+    public String connectUrl(
+            Authentication authentication) {
 
-        String username = authentication.getName();
+        String username =
+                authentication.getName();
 
-        String state = gitHubService.generateState(username);
+        String state =
+                gitHubService.generateState(username);
 
         return gitHubService.getAuthorizationUrl(state);
     }
 }
-

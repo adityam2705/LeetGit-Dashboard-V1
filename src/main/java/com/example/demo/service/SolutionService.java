@@ -15,11 +15,10 @@ import com.example.demo.repository.UserRepository;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
-import com.example.demo.service.GitHubApiService;
+
 @Service
 public class SolutionService {
 
-    private final GitHubApiService gitHubApiService;
     private final SolutionRepository solutionRepository;
     private final SolutionMapper solutionMapper;
     private final UserRepository userRepository;
@@ -31,21 +30,18 @@ public class SolutionService {
             SolutionMapper solutionMapper,
             UserRepository userRepository,
             ProblemRepository problemRepository,
-            UserProblemRepository userProblemRepository,
-            GitHubApiService gitHubApiService) {
+            UserProblemRepository userProblemRepository) {
 
         this.solutionRepository = solutionRepository;
         this.solutionMapper = solutionMapper;
         this.userRepository = userRepository;
         this.problemRepository = problemRepository;
         this.userProblemRepository = userProblemRepository;
-        this.gitHubApiService = gitHubApiService;
     }
 
     public SolutionResponseDTO saveSolution(
             Long leetcodeId,
             SolutionRequestDTO request) {
-
 
         Authentication authentication =
                 SecurityContextHolder.getContext()
@@ -58,14 +54,12 @@ public class SolutionService {
                 .orElseThrow(() ->
                         new RuntimeException("User not found"));
 
-
         Problem problem = problemRepository
                 .findByLeetcodeId(leetcodeId)
                 .orElseThrow(() ->
                         new ProblemNotFoundException(
                                 "Problem '" + leetcodeId + "' not found"
                         ));
-
 
         UserProblem userProblem =
                 userProblemRepository
@@ -82,35 +76,57 @@ public class SolutionService {
                                     .save(newUserProblem);
                         });
 
-
+        /*
+         * One user should have only one Solution
+         * for one LeetCode problem.
+         *
+         * This matches our GitHub structure:
+         *
+         *     difficulty/problem-slug.extension
+         *
+         * Therefore, if a solution already exists for
+         * this UserProblem, do not create another one.
+         */
         Solution existingSolution =
                 solutionRepository
-                        .findByLeetcodeSubmissionId(
-                                request.getLeetcodeSubmissionId()
-                        )
+                        .findByUserProblem(userProblem)
                         .orElse(null);
 
         if (existingSolution != null) {
             return solutionMapper.toDTO(existingSolution);
         }
 
-
+        /*
+         * No solution exists yet for this user's problem.
+         * Create the first solution.
+         */
         Solution solution =
                 solutionMapper.toEntity(request);
 
-
         solution.setUserProblem(userProblem);
 
+        /*
+         * GitHub sync status is stored on UserProblem.
+         *
+         * A newly created UserProblem starts with:
+         *
+         *     githubSynced = false
+         *
+         * The bulk GitHub sync will later:
+         *
+         *     githubSynced = false
+         *              ↓
+         *        GitHub tree
+         *              ↓
+         *        GitHub commit
+         *              ↓
+         *        branch update succeeds
+         *              ↓
+         *     githubSynced = true
+         */
 
         Solution savedSolution =
                 solutionRepository.save(solution);
-
-
-        gitHubApiService.createSolutionFile(
-                username,
-                savedSolution
-        );
-
 
         return solutionMapper.toDTO(savedSolution);
     }
