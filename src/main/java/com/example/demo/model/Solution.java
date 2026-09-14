@@ -17,10 +17,7 @@ public class Solution {
     )
     private UserProblem userProblem;
 
-    @Column(
-            nullable = false,
-            unique = true
-    )
+    @Column(nullable = false)
     private Long leetcodeSubmissionId;
 
     @Column(
