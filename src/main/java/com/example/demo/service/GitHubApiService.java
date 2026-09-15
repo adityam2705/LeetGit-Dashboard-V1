@@ -11,6 +11,8 @@ import com.example.demo.repository.SolutionRepository;
 import com.example.demo.repository.UserProblemRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.client.HttpClientErrorException;
 
 import java.util.*;
 
@@ -96,8 +98,52 @@ public class GitHubApiService {
             long start =
                     System.nanoTime();
 
-            GitHubBranchState state =
-                    getCurrentBranchState(username);
+            GitHubBranchState state;
+
+            try {
+
+                state =
+                        getCurrentBranchState(username);
+
+            } catch (HttpClientErrorException e) {
+
+                /*
+                 * An empty GitHub repository has no commit yet.
+                 *
+                 * GitHub returns 409 when we request the current
+                 * commit of the default branch.
+                 *
+                 * Initialize the repository using the Contents API.
+                 */
+
+                if (e.getStatusCode() == HttpStatus.CONFLICT
+                        && e.getResponseBodyAsString()
+                        .contains("Git Repository is empty")) {
+
+                    System.out.println(
+                            "GITHUB REPOSITORY IS EMPTY - initializing repository."
+                    );
+
+                    initializeEmptyRepository(
+                            username
+                    );
+
+                    /*
+                     * The Contents API created the first commit.
+                     *
+                     * The repository is now initialized, so reload
+                     * the branch state and continue through the
+                     * normal bulk Git Trees flow.
+                     */
+
+                    state =
+                            getCurrentBranchState(username);
+
+                } else {
+
+                    throw e;
+                }
+            }
 
             long end =
                     System.nanoTime();
@@ -112,27 +158,6 @@ public class GitHubApiService {
             // -----------------------------------------------------
             // 4. CREATE ONE BULK TREE
             // -----------------------------------------------------
-
-            /*
-             * IMPORTANT:
-             *
-             * We do NOT check whether files already exist
-             * in GitHub.
-             *
-             * The DATABASE decides which problems are pending.
-             *
-             * githubSynced=false means the problem must be
-             * included in this GitHub sync.
-             *
-             * base_tree preserves the existing GitHub repository.
-             *
-             * If easy/medium/hard folders do not exist,
-             * GitHub creates the required tree structure from
-             * the file paths.
-             *
-             * If they already exist, the files are added to
-             * those existing folders.
-             */
 
             start =
                     System.nanoTime();
@@ -259,8 +284,6 @@ public class GitHubApiService {
         } catch (Exception e) {
 
             /*
-             * Important:
-             *
              * If any GitHub operation fails before the
              * branch update succeeds, githubSynced remains
              * false.
@@ -271,6 +294,166 @@ public class GitHubApiService {
 
             throw new RuntimeException(
                     "Bulk GitHub sync failed",
+                    e
+            );
+        }
+    }
+
+
+    // =========================================================
+    // INITIALIZE EMPTY GITHUB REPOSITORY
+    // =========================================================
+
+    private void initializeEmptyRepository(
+            String username) {
+
+        GitHubAccount account =
+                getGitHubAccount(username);
+
+        String accessToken =
+                gitHubService.getValidAccessToken(account);
+
+        String owner =
+                account.getRepositoryOwner();
+
+        String repository =
+                account.getRepositoryName();
+
+        String branch =
+                getRepositoryDefaultBranch(
+                        owner,
+                        repository,
+                        accessToken
+                );
+
+        /*
+         * GitHub does not allow creating a Git reference
+         * in a completely empty repository.
+         *
+         * Therefore we initialize the repository through
+         * the Contents API.
+         *
+         * The .gitkeep file creates the initial easy/
+         * directory and establishes the first commit.
+         *
+         * After this, the normal Git Trees API bulk-sync
+         * flow can safely be used.
+         */
+
+        String path =
+                "easy/.gitkeep";
+
+        String encodedContent =
+                Base64.getEncoder()
+                        .encodeToString(
+                                new byte[0]
+                        );
+
+        Map<String, Object> body =
+                new HashMap<>();
+
+        body.put(
+                "message",
+                "Initialize LeetGit repository"
+        );
+
+        body.put(
+                "content",
+                encodedContent
+        );
+
+        body.put(
+                "branch",
+                branch
+        );
+
+        RestClient restClient =
+                RestClient.create();
+
+        System.out.println(
+                "GITHUB REPOSITORY IS EMPTY"
+        );
+
+        System.out.println(
+                "GITHUB INITIALIZING REPOSITORY"
+        );
+
+        System.out.println(
+                "GITHUB INITIALIZATION PATH = "
+                        + path
+        );
+
+        restClient.put()
+                .uri(
+                        "https://api.github.com/repos/"
+                                + owner
+                                + "/"
+                                + repository
+                                + "/contents/"
+                                + path
+                )
+                .header(
+                        "Authorization",
+                        "Bearer " + accessToken
+                )
+                .header(
+                        "Accept",
+                        "application/vnd.github+json"
+                )
+                .body(body)
+                .retrieve()
+                .body(String.class);
+
+        System.out.println(
+                "GITHUB EMPTY REPOSITORY INITIALIZED"
+        );
+    }
+
+
+    // =========================================================
+    // GET REPOSITORY DEFAULT BRANCH
+    // =========================================================
+
+    private String getRepositoryDefaultBranch(
+            String owner,
+            String repository,
+            String accessToken) {
+
+        RestClient restClient =
+                RestClient.create();
+
+        String response =
+                restClient.get()
+                        .uri(
+                                "https://api.github.com/repos/"
+                                        + owner
+                                        + "/"
+                                        + repository
+                        )
+                        .header(
+                                "Authorization",
+                                "Bearer " + accessToken
+                        )
+                        .header(
+                                "Accept",
+                                "application/vnd.github+json"
+                        )
+                        .retrieve()
+                        .body(String.class);
+
+        try {
+
+            com.fasterxml.jackson.databind.ObjectMapper mapper =
+                    new com.fasterxml.jackson.databind.ObjectMapper();
+
+            return mapper.readTree(response)
+                    .get("default_branch")
+                    .asText();
+
+        } catch (Exception e) {
+
+            throw new RuntimeException(
+                    "Failed to get GitHub default branch",
                     e
             );
         }
@@ -587,6 +770,18 @@ public class GitHubApiService {
                     commitSha,
                     treeSha
             );
+
+        } catch (HttpClientErrorException e) {
+
+            /*
+             * Preserve GitHub HTTP errors.
+             *
+             * In particular, the 409 returned for an empty
+             * repository must reach syncPendingSolutions(),
+             * where it is handled explicitly.
+             */
+
+            throw e;
 
         } catch (Exception e) {
 

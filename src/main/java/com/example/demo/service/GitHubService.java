@@ -182,6 +182,7 @@ public class GitHubService {
                 + "&state=" + state
                 + "&code_challenge=" + codeChallenge
                 + "&code_challenge_method=S256"
+                + "&scope=repo"
                 + "&prompt=select_account";
     }
 
