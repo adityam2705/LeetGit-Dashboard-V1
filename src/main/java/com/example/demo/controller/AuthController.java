@@ -1,5 +1,6 @@
 package com.example.demo.controller;
 
+import com.example.demo.dto.LoginRequestDTO;
 import com.example.demo.dto.LoginResponseDTO;
 import com.example.demo.dto.RefreshTokenRequestDTO;
 import com.example.demo.model.User;
@@ -28,8 +29,10 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public LoginResponseDTO login(@RequestParam String username,
-                                  @RequestParam String password) {
+    public LoginResponseDTO login(@RequestBody LoginRequestDTO request) {
+
+        String username = request.getUsername();
+        String password = request.getPassword();
 
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(

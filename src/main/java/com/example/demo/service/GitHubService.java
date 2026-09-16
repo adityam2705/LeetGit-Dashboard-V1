@@ -53,8 +53,12 @@ public class GitHubService {
                 .findById(state)
                 .orElse(null);
 
+        if (oauthState == null) {
+            return false;
+        }
+
         if (oauthState.getExpiresAt()
-                .isBefore(java.time.Instant.now())){
+                .isBefore(java.time.Instant.now())) {
 
             oauthStateRepository.deleteById(state);
             return false;

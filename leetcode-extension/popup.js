@@ -1815,18 +1815,16 @@ async function login() {
 
         const response =
             await fetchWithTimeout(
-                API_BASE_URL +
-                "/auth/login" +
-                "?username=" +
-                encodeURIComponent(
-                    username
-                ) +
-                "&password=" +
-                encodeURIComponent(
-                    password
-                ),
+                API_BASE_URL + "/auth/login",
                 {
-                    method: "POST"
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        username: username,
+                        password: password
+                    })
                 }
             );
 
