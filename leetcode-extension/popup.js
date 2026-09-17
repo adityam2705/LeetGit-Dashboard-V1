@@ -1167,6 +1167,8 @@ async function checkGitHubStatus() {
 
             await loadRepositories();
 
+            return true;
+
         } else {
 
             status.textContent =
@@ -1192,6 +1194,8 @@ async function checkGitHubStatus() {
                 syncButton.disabled =
                     true;
             }
+
+            return false;
         }
 
     } catch (error) {
@@ -1222,6 +1226,8 @@ async function checkGitHubStatus() {
             syncButton.disabled =
                 true;
         }
+
+        return false;
     }
 }
 
@@ -1952,6 +1958,10 @@ async function renderSyncState(
 
 
             case "stopped":
+
+                syncInProgress = false;
+
+                setControlsDisabled(false);
 
                 renderFailedState({
 
@@ -2835,6 +2845,20 @@ async function connectGitHub() {
             authorizationUrl,
             "_blank"
         );
+
+// Check whether GitHub authorization completed.
+        for (let i = 0; i < 60; i++) {
+            await new Promise(resolve =>
+                setTimeout(resolve, 1500)
+            );
+
+            const connected = await checkGitHubStatus();
+
+            if (connected) {
+                console.log("GitHub connected successfully.");
+                break;
+            }
+        }
 
     } catch (error) {
 

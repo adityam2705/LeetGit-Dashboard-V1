@@ -800,7 +800,7 @@ async function saveStoppedSyncState() {
             syncState: {
 
                 status:
-                    "Sync stopped",
+                    "stopped",
 
                 processed:
                     Number.isFinite(
@@ -1517,7 +1517,7 @@ chrome.runtime.onMessage.addListener(
                     syncState: {
 
                         status:
-                            "Sync failed",
+                            "failed",
 
                         processed:
                             Number(
