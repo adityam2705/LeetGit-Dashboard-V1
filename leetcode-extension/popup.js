@@ -831,62 +831,41 @@ function showLoggedIn(username) {
             logout
         );
 
-
     void (async () => {
-
         try {
+            // Don't let a previous popup session force
+            // the user back into an old sync screen.
+            const data = await chrome.storage.local.get([
+                "syncState"
+            ]);
 
-            const data =
-                await chrome.storage.local.get([
-                    "syncState"
-                ]);
+            const status = data?.syncState?.status;
 
-
-            const syncState =
-                data?.syncState;
-
-
+            // Keep completed results if desired.
+            // Clear failed/stopped and stale transient states.
             if (
-
-                syncState?.status ===
-                "starting"
-
-                ||
-
-                syncState?.status ===
-                "running"
-
-                ||
-
-                syncState?.status ===
-                "stopping"
-
+                status === "failed" ||
+                status === "stopped" ||
+                status === "starting" ||
+                status === "running" ||
+                status === "stopping"
             ) {
-
-                await renderSyncState(
-                    syncState
-                );
-
-                return;
+                await chrome.storage.local.remove("syncState");
             }
 
-
+            syncInProgress = false;
             await checkGitHubStatus();
 
-
-            await restoreSyncState();
-
+            // Don't restore an old failure screen.
+            // The logged-in screen is the default.
         } catch (error) {
+            console.error("Failed to initialize popup:", error);
 
-            console.error(
-                "Failed to initialize popup:",
-                error
-            );
-
+            // Fail open: don't leave the popup locked.
+            syncInProgress = false;
+            setControlsDisabled(false);
         }
-
-    })();
-
+    })()
 }
 
 
@@ -1011,7 +990,7 @@ function showRegister() {
                 const input =
                     document.getElementById(
                         "register-password"
-                    );F
+                    );
 
                 const button =
                     document.getElementById(
@@ -1991,25 +1970,37 @@ async function renderSyncState(
 
 
 async function restoreSyncState() {
-
     try {
-
         const data =
             await chrome.storage.local.get([
                 "syncState"
             ]);
 
+        const state = data?.syncState;
 
-        await renderSyncState(
-            data?.syncState
-        );
+        // Only restore a completed result.
+        // Never reopen a previous failure or
+        // abandoned sync screen.
+        if (state?.status !== "completed") {
+            await chrome.storage.local.remove(
+                "syncState"
+            );
+
+            syncInProgress = false;
+            setControlsDisabled(false);
+            return;
+        }
+
+        await renderSyncState(state);
 
     } catch (error) {
-
         console.error(
             "Failed to restore sync state:",
             error
         );
+
+        syncInProgress = false;
+        setControlsDisabled(false);
     }
 }
 
@@ -3048,24 +3039,19 @@ async function syncNow() {
             ]);
 
 
+        // A stored running state may be stale.
+// Clear it so the user can start a new sync.
+
         if (
-            currentState?.syncState?.status ===
-            "starting" ||
-
-            currentState?.syncState?.status ===
-            "running"
+            currentState?.syncState?.status === "starting" ||
+            currentState?.syncState?.status === "running" ||
+            currentState?.syncState?.status === "stopping"
         ) {
+            await chrome.storage.local.remove("syncState");
 
-            syncInProgress =
-                true;
+            syncInProgress = false;
 
-
-            await renderSyncState(
-                currentState.syncState
-            );
-
-
-            return;
+            setControlsDisabled(false);
         }
 
     } catch (error) {

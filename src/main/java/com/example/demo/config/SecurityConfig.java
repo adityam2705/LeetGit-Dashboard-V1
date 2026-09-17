@@ -19,6 +19,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
 
+
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
@@ -90,7 +91,7 @@ public class SecurityConfig {
 
         configuration.setAllowedOrigins(List.of(
                 "https://leetcode.com",
-                "chrome-extension://pnnncnipgbbalpblckialbpdijnllebl"
+                "chrome-extension://lkeaejofeihjgajgkomaijpljdonhbem"
         ));
 
         configuration.setAllowedMethods(
