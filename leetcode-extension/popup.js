@@ -1,6 +1,6 @@
 const loginSection = document.getElementById("login-section");
 
-const API_BASE_URL = "http://localhost:8080";
+const API_BASE_URL = "https://leetgit-dashboard-v1-production.up.railway.app";
 
 let syncInProgress = false;
 
