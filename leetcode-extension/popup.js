@@ -1,15 +1,16 @@
 const loginSection = document.getElementById("login-section");
-const message = document.getElementById("message");
 
 const API_BASE_URL = "http://localhost:8080";
 
 let syncInProgress = false;
+
 
 // =========================================
 // SYNC STATE / UI HELPERS
 // =========================================
 
 const REQUEST_TIMEOUT_MS = 15000;
+
 
 function escapeHTML(value) {
 
@@ -191,25 +192,30 @@ chrome.runtime.onMessage.addListener(
             return;
         }
 
+
         const progressBar =
             document.getElementById(
                 "sync-progress-bar"
             );
+
 
         const progressText =
             document.getElementById(
                 "sync-progress-text"
             );
 
+
         const progressPercent =
             document.getElementById(
                 "sync-progress-percent"
             );
 
+
         const currentProblem =
             document.getElementById(
                 "sync-current-problem"
             );
+
 
         if (
             !progressBar ||
@@ -218,6 +224,7 @@ chrome.runtime.onMessage.addListener(
 
             return;
         }
+
 
         const processed =
             Math.max(
@@ -228,6 +235,7 @@ chrome.runtime.onMessage.addListener(
                 )
             );
 
+
         const total =
             Math.max(
                 0,
@@ -237,23 +245,28 @@ chrome.runtime.onMessage.addListener(
                 )
             );
 
+
         const percent =
             safePercent(
                 processed,
                 total
             );
 
+
         progressBar.style.width =
             percent + "%";
 
+
         progressText.textContent =
             `${processed} / ${total}`;
+
 
         if (progressPercent) {
 
             progressPercent.textContent =
                 `${percent}%`;
         }
+
 
         if (
             currentProblem &&
@@ -265,8 +278,26 @@ chrome.runtime.onMessage.addListener(
                 message.problem;
         }
 
+
+        const progressRing =
+            document.getElementById(
+                "progress-ring"
+            );
+
+
+        if (progressRing) {
+
+            progressRing.style
+                .setProperty(
+                    "--progress",
+                    percent
+                );
+        }
+
+
         syncInProgress =
             true;
+
 
         setControlsDisabled(
             true
@@ -420,81 +451,360 @@ async function apiFetch(
 
 function showLoggedIn(username) {
 
+    chrome.storage.local.get(["lastSyncSummary"]).then((data) => {
+
+        const summary = data?.lastSyncSummary;
+
+        if (!summary) {
+            return;
+        }
+
+        const newEl =
+            document.getElementById("stat-new");
+
+        const alreadyEl =
+            document.getElementById("stat-already");
+
+        const statusEl =
+            document.getElementById("stat-status");
+
+        const numberEl =
+            document.getElementById("stat-number");
+
+        const captionEl =
+            document.getElementById("stat-caption");
+
+        if (newEl) {
+            newEl.textContent =
+                summary.newSolutions ?? 0;
+        }
+
+        if (alreadyEl) {
+            alreadyEl.textContent =
+                summary.alreadySynced ?? 0;
+        }
+
+        if (numberEl) {
+            numberEl.textContent =
+                summary.processed ?? 0;
+        }
+
+        if (captionEl) {
+            captionEl.textContent =
+                "Solutions processed in your latest sync.";
+        }
+
+        if (statusEl) {
+            statusEl.textContent =
+                "Synced";
+        }
+    });
+
+    const safeUsername =
+        escapeHTML(
+            username || "Developer"
+        );
+
+
+    const initial =
+        escapeHTML(
+            (username || "D")
+                .charAt(0)
+                .toUpperCase()
+        );
+
+
     loginSection.innerHTML = `
 
-        <p>
-            ✓ Logged in as
-            <strong>${escapeHTML(username)}</strong>
-        </p>
+        <section class="dashboard-page">
+
+            <div class="page-intro">
+
+                <p class="eyebrow">
+                    Welcome back
+                </p>
+
+                <h1 class="page-title">
+                    Your LeetCode journey
+                </h1>
+
+                <p class="page-subtitle">
+                    Keep your accepted solutions
+                    backed up on GitHub.
+                </p>
+
+            </div>
 
 
-        <!-- GITHUB STATUS -->
+            <!-- USER -->
 
-        <div
-            id="github-status"
-            class="github-status"
-        >
-            Checking GitHub...
-        </div>
+            <div class="card user-card">
 
-
-        <!-- CONNECT GITHUB -->
-
-        <button id="github">
-            Connect GitHub
-        </button>
+                <div class="avatar">
+                    ${initial}
+                </div>
 
 
-        <br><br>
+                <div class="user-info">
+
+                    <div class="user-name">
+                        ${safeUsername}
+                    </div>
 
 
-        <!-- REPOSITORY -->
-
-        <label for="repository">
-            Repository
-        </label>
+                    <div class="user-label">
+                        LeetCode account
+                    </div>
 
 
-        <select
-            id="repository"
-            disabled
-        >
+                    <span class="status-pill">
 
-            <option value="">
-                Select repository
-            </option>
+                        <span class="status-dot"></span>
 
-        </select>
+                        Logged in
 
+                    </span>
 
-        <br><br>
+                </div>
+
+            </div>
 
 
-        <!-- SYNC HINT -->
+            <!-- SOLVED -->
 
-        <p class="sync-hint">
-            ℹ Open LeetCode Progress to sync your solutions
-        </p>
+            <div class="section">
 
+                <div
+                    class="card stat-card"
+                    id="sync-summary-card"
+                >
 
-        <!-- SYNC BUTTON -->
-
-        <button
-            id="sync"
-            disabled
-        >
-            Sync Now
-        </button>
-
-
-        <br><br>
+                    <div
+                        class="stat-kicker"
+                        id="stat-kicker"
+                    >
+                        LeetGit is ready
+                    </div>
 
 
-        <!-- LOGOUT -->
+                    <div
+                        class="stat-number"
+                        id="stat-number"
+                    >
+                        —
+                    </div>
 
-        <button id="logout">
-            Logout
-        </button>
+
+                    <div
+                        class="stat-caption"
+                        id="stat-caption"
+                    >
+                        Accepted solutions will
+                        appear here after your
+                        first sync.
+                    </div>
+
+
+                    <div class="stat-divider"></div>
+
+
+                    <div class="difficulty-row">
+
+                        <div class="difficulty">
+
+                            <div class="difficulty-name">
+                                New
+                            </div>
+
+                            <div
+                                class="difficulty-value"
+                                id="stat-new"
+                            >
+                                —
+                            </div>
+
+                        </div>
+
+
+                        <div class="difficulty">
+
+                            <div class="difficulty-name">
+                                Already synced
+                            </div>
+
+                            <div
+                                class="difficulty-value"
+                                id="stat-already"
+                            >
+                                —
+                            </div>
+
+                        </div>
+
+
+                        <div class="difficulty">
+
+                            <div class="difficulty-name">
+                                Status
+                            </div>
+
+                            <div
+                                class="difficulty-value"
+                                id="stat-status"
+                            >
+                                Ready
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- GITHUB -->
+
+            <div class="section">
+
+                <div class="section-label">
+
+                    <span>
+                        GitHub
+                    </span>
+
+                    <span id="github-mini-label">
+                        Connection
+                    </span>
+
+                </div>
+
+
+                <div class="card github-card">
+
+                    <div class="github-row">
+
+                        <div class="github-icon">
+                            ◉
+                        </div>
+
+
+                        <div class="github-info">
+
+                            <div class="github-title">
+                                GitHub Connection
+                            </div>
+
+
+                            <div
+                                class="github-subtitle"
+                                id="github-status-text"
+                            >
+                                Checking connection...
+                            </div>
+
+                        </div>
+
+
+                        <span
+                            class="connected-pill"
+                            id="github-pill"
+                            style="display:none"
+                        >
+
+                            <span class="status-dot"></span>
+
+                            Connected
+
+                        </span>
+
+                    </div>
+
+
+                    <button
+                        id="github"
+                        class="secondary-button"
+                        type="button"
+                        style="margin-top:12px;"
+                    >
+                        Connect GitHub
+                    </button>
+
+
+                    <div class="repo-wrap">
+
+                        <label
+                            class="repo-label"
+                            for="repository"
+                        >
+                            Sync repository
+                        </label>
+
+
+                        <select
+                            id="repository"
+                            disabled
+                        >
+
+                            <option value="">
+                                Select repository
+                            </option>
+
+                        </select>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- SYNC -->
+
+            <button
+                id="sync"
+                class="primary-button"
+                type="button"
+                disabled
+            >
+
+                <span class="primary-main">
+                    ↻ &nbsp; Sync Now
+                </span>
+
+
+                <span class="primary-sub">
+                    Fetch accepted solutions
+                    and push to GitHub
+                </span>
+
+            </button>
+
+
+            <div
+                class="last-sync"
+                id="last-sync"
+            >
+                No sync completed yet
+            </div>
+
+
+            <button
+                id="logout"
+                class="text-button"
+                type="button"
+            >
+                Log out
+            </button>
+
+
+            <p
+                id="message"
+                class="message"
+            ></p>
+
+        </section>
     `;
 
 
@@ -526,20 +836,31 @@ function showLoggedIn(username) {
 
         try {
 
-            // Restore an active sync FIRST.
-            // GitHub/repository initialization must not hide a running sync.
-
             const data =
                 await chrome.storage.local.get([
                     "syncState"
                 ]);
 
+
             const syncState =
                 data?.syncState;
 
+
             if (
-                syncState?.status === "starting" ||
-                syncState?.status === "running"
+
+                syncState?.status ===
+                "starting"
+
+                ||
+
+                syncState?.status ===
+                "running"
+
+                ||
+
+                syncState?.status ===
+                "stopping"
+
             ) {
 
                 await renderSyncState(
@@ -549,7 +870,9 @@ function showLoggedIn(username) {
                 return;
             }
 
+
             await checkGitHubStatus();
+
 
             await restoreSyncState();
 
@@ -559,9 +882,11 @@ function showLoggedIn(username) {
                 "Failed to initialize popup:",
                 error
             );
+
         }
 
     })();
+
 }
 
 
@@ -573,47 +898,152 @@ function showRegister() {
 
     loginSection.innerHTML = `
 
-        <h4>
-            Create your account
-        </h4>
+        <section class="auth-card card">
+
+            <div class="auth-icon">
+                ✨
+            </div>
 
 
-        <input
-            id="register-username"
-            type="text"
-            placeholder="Username"
-        />
+            <h1 class="auth-title">
+                Create your account
+            </h1>
 
 
-        <br><br>
+            <p class="auth-subtitle">
+                Start syncing your LeetCode journey
+                with GitHub using LeetGit.
+            </p>
 
 
-        <input
-            id="register-password"
-            type="password"
-            placeholder="Password"
-        />
+            <div class="form-group">
+
+                <label
+                    class="form-label"
+                    for="register-username"
+                >
+                    Username
+                </label>
 
 
-        <br><br>
+                <input
+                    id="register-username"
+                    type="text"
+                    placeholder="Choose a username"
+                >
+
+            </div>
 
 
-        <button id="create-account">
-            Create Account
-        </button>
+            <div class="form-group">
+
+                <label
+                    class="form-label"
+                    for="register-password"
+                >
+                    Password
+                </label>
 
 
-        <br><br>
+                <div class="password-wrapper">
+
+    <input
+        id="register-password"
+        type="password"
+        placeholder="Create a password"
+    >
+
+    <button
+        type="button"
+        class="password-toggle"
+        id="toggle-register-password"
+        aria-label="Show password"
+    >
+        👁
+    </button>
+
+</div>
+
+            </div>
 
 
-        <button id="back-to-login">
-            ← Back to Login
-        </button>
+            <div class="auth-actions">
+
+                <button
+                    id="create-account"
+                    class="primary-button"
+                    type="button"
+                >
+
+                    <span class="primary-main">
+                        Create Account
+                    </span>
+
+                </button>
 
 
-        <p id="message"></p>
+                <button
+                    id="back-to-login"
+                    class="secondary-button"
+                    type="button"
+                >
+                    ← Back to Login
+                </button>
+
+            </div>
+
+
+            <p
+                id="message"
+                class="message"
+            ></p>
+
+        </section>
     `;
 
+
+    document
+        .getElementById("toggle-register-password")
+        ?.addEventListener(
+            "click",
+            () => {
+
+                const input =
+                    document.getElementById(
+                        "register-password"
+                    );F
+
+                const button =
+                    document.getElementById(
+                        "toggle-register-password"
+                    );
+
+                if (!input) return;
+
+                if (input.type === "password") {
+
+                    input.type = "text";
+
+                    button.textContent = "🙈";
+
+                    button.setAttribute(
+                        "aria-label",
+                        "Hide password"
+                    );
+
+                } else {
+
+                    input.type = "password";
+
+                    button.textContent = "👁";
+
+                    button.setAttribute(
+                        "aria-label",
+                        "Show password"
+                    );
+                }
+            }
+        );
 
     document
         .getElementById("create-account")
@@ -629,6 +1059,7 @@ function showRegister() {
             "click",
             showLogin
         );
+
 }
 
 
@@ -640,7 +1071,25 @@ async function checkGitHubStatus() {
 
     const status =
         document.getElementById(
-            "github-status"
+            "github-status-text"
+        );
+
+
+    const githubPill =
+        document.getElementById(
+            "github-pill"
+        );
+
+
+    const githubButton =
+        document.getElementById(
+            "github"
+        );
+
+
+    const syncButton =
+        document.getElementById(
+            "sync"
         );
 
 
@@ -664,7 +1113,22 @@ async function checkGitHubStatus() {
         if (!response.ok) {
 
             status.textContent =
-                "GitHub: Unable to check status";
+                "Unable to check GitHub status";
+
+
+            if (githubPill) {
+
+                githubPill.style.display =
+                    "none";
+            }
+
+
+            if (githubButton) {
+
+                githubButton.style.display =
+                    "block";
+            }
+
 
             return;
         }
@@ -674,42 +1138,31 @@ async function checkGitHubStatus() {
             await response.json();
 
 
-        const syncButton =
-            document.getElementById(
-                "sync"
-            );
-
-
-        const githubButton =
-            document.getElementById(
-                "github"
-            );
-
-
-        if (
-            !syncButton ||
-            !githubButton
-        ) {
-
-            return;
-        }
-
-
         if (result.connected) {
 
             status.textContent =
-                "GitHub: ✓ Connected";
+                "Your GitHub account is connected";
 
 
-            githubButton.style.display =
-                "none";
+            if (githubPill) {
+
+                githubPill.style.display =
+                    "inline-flex";
+            }
 
 
-            // Sync remains disabled
-            // until repository is selected
+            if (githubButton) {
 
-            syncButton.disabled =
-                true;
+                githubButton.style.display =
+                    "none";
+            }
+
+
+            if (syncButton) {
+
+                syncButton.disabled =
+                    true;
+            }
 
 
             await loadRepositories();
@@ -717,15 +1170,28 @@ async function checkGitHubStatus() {
         } else {
 
             status.textContent =
-                "GitHub: Not connected";
+                "Connect GitHub to start syncing";
 
 
-            githubButton.style.display =
-                "block";
+            if (githubPill) {
+
+                githubPill.style.display =
+                    "none";
+            }
 
 
-            syncButton.disabled =
-                true;
+            if (githubButton) {
+
+                githubButton.style.display =
+                    "block";
+            }
+
+
+            if (syncButton) {
+
+                syncButton.disabled =
+                    true;
+            }
         }
 
     } catch (error) {
@@ -734,7 +1200,28 @@ async function checkGitHubStatus() {
 
 
         status.textContent =
-            "GitHub: Unable to check status";
+            "Unable to check GitHub status";
+
+
+        if (githubPill) {
+
+            githubPill.style.display =
+                "none";
+        }
+
+
+        if (githubButton) {
+
+            githubButton.style.display =
+                "block";
+        }
+
+
+        if (syncButton) {
+
+            syncButton.disabled =
+                true;
+        }
     }
 }
 
@@ -746,16 +1233,6 @@ async function checkGitHubStatus() {
 function renderRunningState(
     syncState
 ) {
-
-    const status =
-        document.getElementById(
-            "github-status"
-        );
-
-    if (!status) {
-        return;
-    }
-
 
     const processed =
         Math.max(
@@ -785,121 +1262,241 @@ function renderRunningState(
 
 
     const problem =
-        syncState?.problem ||
-        "Syncing...";
+        escapeHTML(
+            syncState?.problem ||
+            "Starting sync..."
+        );
 
 
-    status.innerHTML = `
+    loginSection.innerHTML = `
 
-        <div class="sync-card">
+        <section class="sync-page">
 
-            <div class="sync-card-header">
+            <div class="back-row">
 
-                <div class="sync-icon">
-                    ⟳
-                </div>
-
-                <div class="sync-info">
-
-                    <div class="sync-title">
-                        Syncing LeetCode Solutions...
-                    </div>
-
-                    <div class="sync-subtitle">
-                        Processing your solved problems
-                    </div>
-
-                </div>
-
-                <div
-                    id="sync-progress-text"
-                    class="sync-count"
+                <button
+                    class="back-button"
+                    id="sync-back"
+                    type="button"
+                    aria-label="Back"
                 >
-                    ${processed} / ${total}
+                    ‹
+                </button>
+
+
+                <div>
+
+                    <p class="eyebrow">
+                        LeetGit Sync
+                    </p>
+
+
+                    <h1 class="page-title">
+                        Sync Progress
+                    </h1>
+
                 </div>
 
             </div>
 
 
-            <div class="sync-progress-row">
+            <p class="page-subtitle">
+                Fetching your accepted solutions
+                and pushing them to GitHub.
+            </p>
 
-                <div class="sync-progress-track">
 
-                    <div
-                        id="sync-progress-bar"
-                        class="sync-progress-bar"
-                        style="width: ${percent}%"
-                    ></div>
+            <div class="card sync-card">
+
+                <div class="sync-top">
+
+                    <div>
+
+                        <div class="sync-heading">
+                            Syncing in progress...
+                        </div>
+
+
+                        <div class="sync-subheading">
+                            Processing your LeetCode solutions
+                        </div>
+
+                    </div>
+
+
+                    <span class="status-pill">
+
+                        <span class="status-dot"></span>
+
+                        Live
+
+                    </span>
 
                 </div>
 
-                <div
-                    id="sync-progress-percent"
-                    class="sync-percent"
-                >
-                    ${percent}%
+
+                <div class="sync-stage">
+
+                    <div class="progress-layout">
+
+                        <div
+                            class="progress-ring"
+                            id="progress-ring"
+                            style="--progress:${percent}"
+                        >
+
+                            <span
+                                class="progress-value"
+                                id="sync-progress-percent"
+                            >
+                                ${percent}%
+                            </span>
+
+                        </div>
+
+
+                        <div class="progress-details">
+
+                            <div
+                                class="progress-status"
+                                id="sync-stage-status"
+                            >
+                                Processing files
+                            </div>
+
+
+                            <div
+                                class="progress-caption"
+                                id="sync-current-problem"
+                            >
+                                ${problem}
+                            </div>
+
+
+                            <div
+                                class="progress-count"
+                                id="sync-progress-text"
+                            >
+                                ${processed} / ${total}
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="progress-track">
+
+                        <div
+                            class="progress-bar"
+                            id="sync-progress-bar"
+                            style="width:${percent}%"
+                        ></div>
+
+                    </div>
+
                 </div>
 
             </div>
 
 
-            <div
-                id="sync-current-problem"
-                class="sync-current-problem"
-            >
-                Syncing: ${escapeHTML(problem)}
+            <div class="activity-card">
+
+                <div class="activity-title">
+                    Current activity
+                </div>
+
+
+                <div
+                    class="activity-list"
+                    id="sync-activity-list"
+                >
+
+                    <div class="activity-item current">
+
+                        <span class="activity-icon">
+                            ◉
+                        </span>
+
+
+                        <span>
+                            ${problem}
+                        </span>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div class="info-banner">
+
+                <strong>
+                    ⓘ Keep LeetGit open
+                </strong>
+
+
+                Closing this panel may interrupt
+                the sync process.
+
             </div>
 
 
             <button
                 id="stop-sync"
+                class="danger-button"
                 type="button"
+                style="margin-top:11px;"
             >
-                Stop Sync
+                ■ &nbsp; Cancel Sync
             </button>
 
-        </div>
+        </section>
     `;
 
 
-    syncInProgress =
-        true;
+    document
+        .getElementById("sync-back")
+        ?.addEventListener(
+            "click",
+            async () => {
+
+                const data =
+                    await chrome.storage.local.get([
+                        "username"
+                    ]);
+
+
+                showLoggedIn(
+                    data?.username ||
+                    "Developer"
+                );
+
+            }
+        );
+
+
+    document
+        .getElementById("stop-sync")
+        ?.addEventListener(
+            "click",
+            stopSync
+        );
+
+
+    syncInProgress = true;
 
 
     setControlsDisabled(
         true
     );
-
-
-    const stopButton =
-        document.getElementById(
-            "stop-sync"
-        );
-
-
-    if (stopButton) {
-
-        stopButton.addEventListener(
-            "click",
-            stopSync
-        );
-    }
 }
 
 
 function renderCompletedState(
     syncState
 ) {
-
-    const status =
-        document.getElementById(
-            "github-status"
-        );
-
-    if (!status) {
-        return;
-    }
-
 
     const summary =
         syncState?.summary || {};
@@ -935,16 +1532,6 @@ function renderCompletedState(
         );
 
 
-    const skippedWithoutAccepted =
-        Math.max(
-            0,
-            safeNumber(
-                summary.skippedWithoutAccepted,
-                0
-            )
-        );
-
-
     const failedProblems =
         Math.max(
             0,
@@ -954,30 +1541,131 @@ function renderCompletedState(
             )
         );
 
+    chrome.storage.local.set({
+        lastSyncSummary: {
+            processed,
+            newSolutions,
+            alreadySynced,
+            failedProblems
+        }
+    });
 
-    const github =
-        summary.github ||
-        "Completed";
+    loginSection.innerHTML = `
+
+        <section class="sync-page">
+
+            <div class="back-row">
+
+                <button
+                    class="back-button"
+                    id="sync-back"
+                    type="button"
+                >
+                    ‹
+                </button>
 
 
-    status.innerHTML = `
+                <div>
 
-        <div class="sync-card">
+                    <p class="eyebrow">
+                        LeetGit Sync
+                    </p>
 
-            <div class="sync-card-header">
 
-                <div class="sync-icon">
+                    <h1 class="page-title">
+                        Sync Complete
+                    </h1>
+
+                </div>
+
+            </div>
+
+
+            <div
+                class="card sync-card sync-result-hero"
+            >
+
+                <div class="success-mark">
                     ✓
                 </div>
 
-                <div class="sync-info">
 
-                    <div class="sync-title">
-                        Sync completed
+                <div class="result-title">
+                    Sync completed successfully
+                </div>
+
+
+                <div class="result-subtitle">
+                    Your LeetCode solutions have
+                    been processed.
+                </div>
+
+
+                <div class="result-number">
+                    ${processed}
+                </div>
+
+
+                <div class="result-number-label">
+                    solutions processed
+                </div>
+
+
+                <div class="result-grid">
+
+                    <div class="result-mini">
+
+                        <strong>
+                            ${newSolutions}
+                        </strong>
+
+
+                        <span>
+                            New solutions
+                        </span>
+
                     </div>
 
-                    <div class="sync-subtitle">
-                        Your LeetCode progress is up to date
+
+                    <div class="result-mini">
+
+                        <strong>
+                            ${alreadySynced}
+                        </strong>
+
+
+                        <span>
+                            Already synced
+                        </span>
+
+                    </div>
+
+
+                    <div class="result-mini">
+
+                        <strong>
+                            ${failedProblems}
+                        </strong>
+
+
+                        <span>
+                            Failed
+                        </span>
+
+                    </div>
+
+
+                    <div class="result-mini">
+
+                        <strong>
+                            100%
+                        </strong>
+
+
+                        <span>
+                            Sync finished
+                        </span>
+
                     </div>
 
                 </div>
@@ -985,132 +1673,83 @@ function renderCompletedState(
             </div>
 
 
-            <div class="sync-result">
+            <div class="tip-banner">
 
-                <div class="sync-result-row">
-
-                    <span>
-                        Problems processed
-                    </span>
-
-                    <strong>
-                        ${processed}
-                    </strong>
-
-                </div>
+                <strong>
+                    💡 Tip
+                </strong>
 
 
-                <div class="sync-result-row">
-
-                    <span>
-                        New solutions added
-                    </span>
-
-                    <strong>
-                        ${newSolutions}
-                    </strong>
-
-                </div>
-
-
-                <div class="sync-result-row">
-
-                    <span>
-                        Already synced
-                    </span>
-
-                    <strong>
-                        ${alreadySynced}
-                    </strong>
-
-                </div>
-
-
-                <div class="sync-result-row">
-
-                    <span>
-                        No accepted submission
-                    </span>
-
-                    <strong>
-                        ${skippedWithoutAccepted}
-                    </strong>
-
-                </div>
-
-
-                <div class="sync-result-row">
-
-                    <span>
-                        Failed problems
-                    </span>
-
-                    <strong>
-                        ${failedProblems}
-                    </strong>
-
-                </div>
-
-
-                <div class="sync-result-row">
-
-                    <span>
-                        GitHub sync
-                    </span>
-
-                    <strong>
-                        ${escapeHTML(github)}
-                    </strong>
-
-                </div>
+                Only accepted solutions are synced,
+                keeping your repository clean.
 
             </div>
 
 
-            <div class="sync-progress-row">
+            <button
+                id="done-sync"
+                class="primary-button"
+                type="button"
+            >
 
-                <div class="sync-progress-track">
+                <span class="primary-main">
+                    Done
+                </span>
 
-                    <div
-                        class="sync-progress-bar"
-                        style="width: 100%;"
-                    ></div>
 
-                </div>
+                <span class="primary-sub">
+                    Return to LeetGit
+                </span>
 
-                <div class="sync-percent">
-                    100%
-                </div>
+            </button>
 
-            </div>
-
-        </div>
+        </section>
     `;
 
 
-    syncInProgress =
-        false;
+    const goBack =
+        async () => {
+
+            await chrome.storage.local.remove([
+                "syncState"
+            ]);
+
+            const data =
+                await chrome.storage.local.get([
+                    "username"
+                ]);
+
+            showLoggedIn(
+                data?.username ||
+                "Developer"
+            );
+
+        };
 
 
-    setControlsDisabled(
-        false
-    );
+    document
+        .getElementById("sync-back")
+        ?.addEventListener(
+            "click",
+            goBack
+        );
+
+
+    document
+        .getElementById("done-sync")
+        ?.addEventListener(
+            "click",
+            goBack
+        );
+
+
+    syncInProgress = false;
 }
 
 
 function renderFailedState(
     syncState
 ) {
-
-    const status =
-        document.getElementById(
-            "github-status"
-        );
-
-    if (!status) {
-        return;
-    }
-
 
     const processed =
         Math.max(
@@ -1133,53 +1772,133 @@ function renderFailedState(
 
 
     const error =
-        syncState?.error ||
-        "Sync failed. Please try again.";
+        escapeHTML(
+            syncState?.error ||
+            "Sync failed. Please try again."
+        );
 
 
-    status.innerHTML = `
+    loginSection.innerHTML = `
 
-        <div class="sync-card">
+        <section class="sync-page">
 
-            <div class="sync-card-header">
+            <div class="back-row">
 
-                <div class="sync-icon">
+                <button
+                    class="back-button"
+                    id="sync-back"
+                    type="button"
+                >
+                    ‹
+                </button>
+
+
+                <div>
+
+                    <p class="eyebrow">
+                        LeetGit Sync
+                    </p>
+
+
+                    <h1 class="page-title">
+                        Sync failed
+                    </h1>
+
+                </div>
+
+            </div>
+
+
+            <div
+                class="card sync-card sync-result-hero"
+            >
+
+                <div class="error-mark">
                     !
                 </div>
 
-                <div class="sync-info">
 
-                    <div class="sync-title">
-                        Sync failed
-                    </div>
+                <div class="result-title">
+                    We couldn't finish the sync
+                </div>
 
-                    <div class="sync-subtitle">
-                        ${escapeHTML(error)}
-                    </div>
 
+                <div class="result-subtitle">
+                    ${error}
+                </div>
+
+
+                <div class="result-number">
+                    ${processed}/${total}
+                </div>
+
+
+                <div class="result-number-label">
+                    solutions processed
+                    before stopping
                 </div>
 
             </div>
 
 
-            <div class="sync-current-problem">
+            <button
+                id="retry-sync"
+                class="primary-button"
+                type="button"
+            >
 
-                Progress when stopped:
-                ${processed} / ${total}
+                <span class="primary-main">
+                    ↻ Try Again
+                </span>
 
-            </div>
 
-        </div>
+                <span class="primary-sub">
+                    Return to the sync screen
+                </span>
+
+            </button>
+
+        </section>
     `;
 
 
-    syncInProgress =
-        false;
+    const goBack =
+        async () => {
+
+            await chrome.storage.local.remove([
+                "syncState"
+            ]);
+
+            const data =
+                await chrome.storage.local.get([
+                    "username"
+                ]);
+
+            showLoggedIn(
+                data?.username ||
+                "Developer"
+            );
+
+        };
 
 
-    setControlsDisabled(
-        false
-    );
+    document
+        .getElementById("sync-back")
+        ?.addEventListener(
+            "click",
+            goBack
+        );
+
+
+    document
+        .getElementById("retry-sync")
+        ?.addEventListener(
+            "click",
+            goBack
+        );
+
+
+    syncInProgress = false;
 }
 
 
@@ -1269,6 +1988,7 @@ async function restoreSyncState() {
             await chrome.storage.local.get([
                 "syncState"
             ]);
+
 
         await renderSyncState(
             data?.syncState
@@ -1443,16 +2163,21 @@ async function loadRepositories() {
         repositorySelect.disabled =
             false;
 
+        const syncButton =
+            document.getElementById("sync");
+
+        if (syncButton) {
+            syncButton.disabled =
+                !repositorySelect.value;
+        }
+
 
         repositorySelect.addEventListener(
             "change",
             () => {
 
                 const syncButton =
-                    document.getElementById(
-                        "sync"
-                    );
-
+                    document.getElementById("sync");
 
                 if (syncButton) {
 
@@ -1460,12 +2185,10 @@ async function loadRepositories() {
                         !repositorySelect.value;
                 }
 
-
                 void chrome.storage.local.set({
                     selectedRepository:
                     repositorySelect.value
                 });
-
 
                 void saveRepository(
                     repositorySelect.value
@@ -1715,48 +2438,160 @@ async function register() {
 
 function showLogin() {
 
-    syncInProgress =
-        false;
+    syncInProgress = false;
 
 
     loginSection.innerHTML = `
 
-        <input
-            id="username"
-            type="text"
-            placeholder="Username"
-        />
+        <section class="auth-card card">
+
+            <div class="auth-icon">
+                ⚡
+            </div>
 
 
-        <br><br>
+            <h1 class="auth-title">
+                Welcome to LeetGit
+            </h1>
 
+
+            <p class="auth-subtitle">
+                Sync your accepted LeetCode solutions
+                directly to your GitHub repository.
+            </p>
+
+
+           <div class="form-group">
+
+    <label
+        class="form-label"
+        for="username"
+    >
+        Username
+    </label>
+
+    <input
+        id="username"
+        type="text"
+        placeholder="Enter your username"
+        autocomplete="username"
+    >
+
+</div>
+
+
+<div class="form-group">
+
+    <label
+        class="form-label"
+        for="password"
+    >
+        Password
+    </label>
+
+    <div class="password-wrapper">
 
         <input
             id="password"
             type="password"
-            placeholder="Password"
-        />
+            placeholder="Enter your password"
+            autocomplete="current-password"
+        >
 
-
-        <br><br>
-
-
-        <button id="login">
-            Login
+        <button
+            type="button"
+            class="password-toggle"
+            id="toggle-login-password"
+            aria-label="Show password"
+        >
+            👁
         </button>
 
+    </div>
 
-        <br><br>
-
-
-        <button id="register">
-            Create account
-        </button>
+</div>
 
 
-        <p id="message"></p>
+
+            <div class="auth-actions">
+
+                <button
+                    id="login"
+                    class="primary-button"
+                    type="button"
+                >
+
+                    <span class="primary-main">
+                        Login
+                    </span>
+
+
+                    <span class="primary-sub">
+                        Continue to LeetGit
+                    </span>
+
+                </button>
+
+
+                <button
+                    id="register"
+                    class="secondary-button"
+                    type="button"
+                >
+                    Create an account
+                </button>
+
+            </div>
+
+
+            <p
+                id="message"
+                class="message"
+            ></p>
+
+        </section>
     `;
 
+    document
+        .getElementById("toggle-login-password")
+        ?.addEventListener(
+            "click",
+            () => {
+
+                const input =
+                    document.getElementById("password");
+
+                const button =
+                    document.getElementById(
+                        "toggle-login-password"
+                    );
+
+                if (!input) return;
+
+                if (input.type === "password") {
+
+                    input.type = "text";
+
+                    button.textContent = "🙈";
+
+                    button.setAttribute(
+                        "aria-label",
+                        "Hide password"
+                    );
+
+                } else {
+
+                    input.type = "password";
+
+                    button.textContent = "👁";
+
+                    button.setAttribute(
+                        "aria-label",
+                        "Show password"
+                    );
+                }
+            }
+        );
 
     document
         .getElementById("login")
@@ -1772,6 +2607,7 @@ function showLogin() {
             "click",
             showRegister
         );
+
 }
 
 
@@ -1818,12 +2654,18 @@ async function login() {
                 API_BASE_URL + "/auth/login",
                 {
                     method: "POST",
+
                     headers: {
-                        "Content-Type": "application/json"
+                        "Content-Type":
+                            "application/json"
                     },
+
                     body: JSON.stringify({
-                        username: username,
-                        password: password
+                        username:
+                        username,
+
+                        password:
+                        password
                     })
                 }
             );
@@ -1840,16 +2682,6 @@ async function login() {
 
         const result =
             await response.json();
-
-
-        if (
-            !result?.accessToken
-        ) {
-
-            throw new Error(
-                "Login response did not contain an access token."
-            );
-        }
 
 
         await chrome.storage.local.set({
@@ -1871,7 +2703,10 @@ async function login() {
 
     } catch (error) {
 
-        console.error(error);
+        console.error(
+            "Login failed:",
+            error
+        );
 
 
         message.textContent =
@@ -1917,7 +2752,10 @@ async function logout() {
 
         "selectedRepository",
 
-        "syncState"
+        "syncState",
+
+        "lastSyncSummary"
+
     ]);
 
 
@@ -2012,13 +2850,10 @@ async function connectGitHub() {
 // STOP SYNC
 // =========================================
 
-// =========================================
-// STOP SYNC
-// =========================================
-
 async function stopSync() {
 
     if (!syncInProgress) {
+
         return;
     }
 
@@ -2033,6 +2868,7 @@ async function stopSync() {
 
         stopButton.disabled =
             true;
+
 
         stopButton.textContent =
             "Stopping...";
@@ -2128,6 +2964,8 @@ async function stopSync() {
         });
     }
 }
+
+
 // =========================================
 // SYNC NOW
 // =========================================
@@ -2140,12 +2978,6 @@ async function syncNow() {
 
         return;
     }
-
-
-    const status =
-        document.getElementById(
-            "github-status"
-        );
 
 
     const syncButton =
@@ -2167,7 +2999,6 @@ async function syncNow() {
 
 
     if (
-        !status ||
         !syncButton ||
         !repositorySelect ||
         !logoutButton
@@ -2196,6 +3027,7 @@ async function syncNow() {
         if (
             currentState?.syncState?.status ===
             "starting" ||
+
             currentState?.syncState?.status ===
             "running"
         ) {
@@ -2207,6 +3039,7 @@ async function syncNow() {
             await renderSyncState(
                 currentState.syncState
             );
+
 
             return;
         }
@@ -2234,84 +3067,6 @@ async function syncNow() {
 
 
     // =====================================
-    // SHOW INITIAL SYNC CARD
-    // =====================================
-
-    status.innerHTML = `
-
-        <div class="sync-card">
-
-            <div class="sync-card-header">
-
-                <div class="sync-icon">
-                    ⟳
-                </div>
-
-                <div class="sync-info">
-
-                    <div class="sync-title">
-                        Syncing LeetCode Solutions...
-                    </div>
-
-                    <div class="sync-subtitle">
-                        Processing your solved problems
-                    </div>
-
-                </div>
-
-                <div
-                    id="sync-progress-text"
-                    class="sync-count"
-                >
-                    0 / 0
-                </div>
-
-            </div>
-
-
-            <div class="sync-progress-row">
-
-                <div class="sync-progress-track">
-
-                    <div
-                        id="sync-progress-bar"
-                        class="sync-progress-bar"
-                        style="width: 0%;"
-                    ></div>
-
-                </div>
-
-
-                <div
-                    id="sync-progress-percent"
-                    class="sync-percent"
-                >
-                    0%
-                </div>
-
-            </div>
-
-
-            <div
-                id="sync-current-problem"
-                class="sync-current-problem"
-            >
-                Starting sync...
-            </div>
-
-
-            <button
-                id="stop-sync"
-                type="button"
-            >
-                Stop Sync
-            </button>
-
-        </div>
-    `;
-
-
-    // =====================================
     // SAVE STARTING STATE
     // =====================================
 
@@ -2331,23 +3086,8 @@ async function syncNow() {
     });
 
 
-    // =====================================
-    // STOP BUTTON
-    // =====================================
-
-    const initialStopButton =
-        document.getElementById(
-            "stop-sync"
-        );
-
-
-    if (initialStopButton) {
-
-        initialStopButton.addEventListener(
-            "click",
-            stopSync
-        );
-    }
+    // The storage listener will render the
+    // new sync screen through renderSyncState().
 
 
     // =====================================
@@ -2387,18 +3127,11 @@ async function syncNow() {
         );
 
 
-        // IMPORTANT:
+        // Do not wait for the entire sync here.
         //
-        // Do NOT wait for the entire sync here.
-        //
-        // background.js -> content.js starts
-        // the long-running sync.
-        //
-        // content.js writes progress into
-        // chrome.storage.local.
-        //
-        // The storage listener above updates
-        // this Side Panel automatically.
+        // background.js -> content.js performs
+        // the long-running sync and updates
+        // chrome.storage.local with progress.
 
         return;
 
@@ -2475,11 +3208,11 @@ async function syncNow() {
             failedState
         );
 
+
     } finally {
 
-        // Do not unlock controls if the
-        // background/content script has
-        // already started the sync.
+        // Do not unlock controls if the background
+        // worker has already started the sync.
 
         try {
 
@@ -2492,14 +3225,17 @@ async function syncNow() {
             if (
                 latest?.syncState?.status !==
                 "starting" &&
+
                 latest?.syncState?.status !==
                 "running" &&
+
                 latest?.syncState?.status !==
                 "stopping"
             ) {
 
                 syncInProgress =
                     false;
+
 
                 setControlsDisabled(
                     false
@@ -2512,7 +3248,6 @@ async function syncNow() {
                 "Could not check latest sync state:",
                 error
             );
-
         }
     }
 }
