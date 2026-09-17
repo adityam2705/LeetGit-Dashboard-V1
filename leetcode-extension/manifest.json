@@ -20,7 +20,7 @@
 
   "host_permissions": [
     "https://leetcode.com/*",
-    "https://leetgit-dashboard-v1-production.up.railway.app"
+    "https://leetgit-dashboard-v1-production.up.railway.app/*"
   ],
 
   "background": {
