@@ -1,3 +1,17 @@
+
+  <p align="center">
+  <img src="leetcode-extension/assets/leetgit-logo.png"
+       alt="LeetGit Logo"
+       width="150">
+</p>
+
+<h1 align="center">LeetGit</h1>
+
+<p align="center">
+  Sync your LeetCode solutions to GitHub.
+</p>
+
+ 
  🚀 LeetGit — LeetCode to GitHub Sync
 
 **Solve. Sync. Build your coding journey.**
