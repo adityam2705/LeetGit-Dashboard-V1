@@ -20,7 +20,7 @@ LeetGit is a Chrome extension that helps developers sync accepted LeetCode solut
 
 ## 🎥 Video Tutorial
 
-[![Watch the LeetGit Tutorial](leetcode-extension/assets/thumbnail.png)](https://youtu.be/SupMtWoibK8?si=91vOTqQ_SO-QAkV3)
+[![Watch the LeetGit Tutorial](leetcode-extension/assets/thumbnail.png)(https://youtu.be/SupMtWoibK8?si=91vOTqQ_SO-QAkV3)
 
 > **Current version:** V1 — LeetCode solution sync. The interactive DSA and Dev dashboard is planned for a future version.
 
